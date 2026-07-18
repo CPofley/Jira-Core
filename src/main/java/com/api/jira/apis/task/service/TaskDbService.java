@@ -36,14 +36,7 @@ public class TaskDbService {
     }
 
     public TaskEntity getTaskByJiraId(Integer jiraId) {
-        // 1. Fetch task and its comments
-        TaskEntity task = tasksRepository.findByJiraIdWithComments(jiraId);
-
-        if (task != null) {
-            // 2. Fetch task and its sub-issues into the same persistence context
-            tasksRepository.findByJiraIdWithSubIssues(jiraId);
-        }
-        return task;
+        return tasksRepository.findByJiraId(jiraId);
     }
 
     public List<TaskEntity> getTasksByStatus(TaskStatus taskStatus, Pageable pageable,Integer projectId) {

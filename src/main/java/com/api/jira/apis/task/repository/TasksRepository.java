@@ -37,21 +37,4 @@ public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
 
     @Query("select t from TaskEntity t where t.project.projectId= :projectId")
     Page<TaskEntity> tasksByProjectId(@Param("projectId") Integer projectId, Pageable pageable);
-
-
-    // cannot fetch two left join list , so we need to fetch them separately and then merge them in the service layer
-    @Query("SELECT t FROM TaskEntity t " +
-            "LEFT JOIN FETCH t.comments " +
-            "LEFT JOIN FETCH t.subIssues " +
-            "WHERE t.id = :jiraId")
-    TaskEntity findByJiraIdWithDetails(@Param("jiraId") Integer jiraId);
-
-
-    // Query 1: Fetch the task along with comments
-    @Query("SELECT t FROM TaskEntity t LEFT JOIN FETCH t.comments WHERE t.id = :jiraId")
-    TaskEntity findByJiraIdWithComments(@Param("jiraId") Integer jiraId);
-
-    // Query 2: Fetch the task along with sub-issues
-    @Query("SELECT t FROM TaskEntity t LEFT JOIN FETCH t.subIssues WHERE t.id = :jiraId")
-    TaskEntity findByJiraIdWithSubIssues(@Param("jiraId") Integer jiraId);
 }
