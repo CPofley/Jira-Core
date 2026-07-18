@@ -1,12 +1,12 @@
 package com.api.jira.apis.user.model;
 
+import lombok.Builder;
 import lombok.Data;
 
+@Builder
 @Data
-public class UserDto {
-    private Integer id;
+public class UserProfileDto {
     private String username;
     private String email;
-    private String password;
     private String pictureUrl;
 }

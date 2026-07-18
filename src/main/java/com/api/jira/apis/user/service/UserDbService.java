@@ -1,8 +1,10 @@
 package com.api.jira.apis.user.service;
 
+import com.api.jira.apis.exceptions.ExceptionTypes.UserNotFoundException;
 import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.mapper.UserMapper;
 import com.api.jira.apis.user.model.UserDto;
+import com.api.jira.apis.user.model.UserProfileDto;
 import com.api.jira.apis.user.model.UserSuggestionsDto;
 import com.api.jira.apis.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -30,9 +32,13 @@ public class UserDbService {
         return Optional.of(userDto);
     }
 
-    public Optional<UserDto> findByReporterEmail(String email) {
+    public UserProfileDto findByReporterEmail(String email) {
         Optional<UserEntity> userEntityOptional = userRepository.findByEmail(email);
-        return userEntityOptional.map(userMapper::toDto);
+        Optional<UserDto> userDto =  userEntityOptional.map(userMapper::toDto);
+        if(userDto.isEmpty()){
+            throw new UserNotFoundException("User not found with email : "+email);
+        }
+        return userMapper.toUserProfileDto(userDto.get());
     }
 
     public Optional<UserEntity> findByUserId(Integer userId){
@@ -53,4 +59,6 @@ public class UserDbService {
                 .map(userMapper::toUserSuggestionsDto)
                 .toList();
     }
+
+
 }
