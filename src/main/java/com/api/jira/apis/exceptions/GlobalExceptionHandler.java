@@ -9,6 +9,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -49,5 +50,37 @@ public class GlobalExceptionHandler {
         log.error("Validation error: {}", errorMessage);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(GenericExceptionResponse.builder().error(errorMessage).build());
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<GenericExceptionResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex){
+        String errorMessage = ex.getLocalizedMessage();
+        log.error("Validation error: {}", errorMessage);
+        if (ex.getCause() instanceof com.fasterxml.jackson.databind.exc.InvalidFormatException ife) {
+
+            // Target class type (e.g., TaskType)
+            String targetType = ife.getTargetType().getSimpleName();
+            // The value the user provided (e.g., "STORY-NEW")
+            Object invalidValue = ife.getValue();
+
+            // Extract allowed Enum constants if it's an enum class
+            if (ife.getTargetType().isEnum()) {
+                Object[] enumConstants = ife.getTargetType().getEnumConstants();
+                String allowedValues = java.util.Arrays.toString(enumConstants);
+
+                errorMessage = String.format("Invalid value '%s' for type '%s'. Accepted values are: %s",
+                        invalidValue, targetType, allowedValues);
+            } else {
+                errorMessage = String.format("Invalid value '%s' for type '%s'.", invalidValue, targetType);
+            }
+        } else {
+            // Fallback for other JSON syntax errors (e.g., missing commas, malformed brackets)
+            errorMessage = "Malformed JSON syntax or missing required fields.";
+        }
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(GenericExceptionResponse.builder()
+                        .error(errorMessage)
+                        .build());
     }
 }
