@@ -11,6 +11,7 @@ import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.mapper.UserMapper;
 import com.api.jira.apis.user.service.UserDbService;
 import jakarta.transaction.Transactional;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
@@ -30,13 +31,16 @@ public class TasksService {
     private final UserMapper userMapper;
     private final ProjectDbService projectDbService;
 
-    public TasksService(TaskMapper taskMapper, TaskDbService taskDbService, CommentMapper commentMapper, UserDbService userDbService, UserMapper userMapper, ProjectDbService projectDbService) {
+    private final CacheManager cacheManager;
+
+    public TasksService(TaskMapper taskMapper, TaskDbService taskDbService, CommentMapper commentMapper, UserDbService userDbService, UserMapper userMapper, ProjectDbService projectDbService, CacheManager cacheManager) {
         this.taskMapper = taskMapper;
         this.taskDbService = taskDbService;
         this.commentMapper = commentMapper;
         this.userDbService = userDbService;
         this.userMapper = userMapper;
         this.projectDbService = projectDbService;
+        this.cacheManager = cacheManager;
     }
 
     public Integer createTask(CreateTaskRequest createTaskRequest) {
@@ -87,6 +91,12 @@ public class TasksService {
             throw new RuntimeException("Task not found with id: " + id);
         }
 
+        Integer parentJiraId = null;
+        if (existingTask.getParentTask() != null) {
+            // Assuming your Parent Task entity maps its jira tracking ID to a field like getJiraId() or getId()
+            parentJiraId = existingTask.getParentTask().getId();
+        }
+
         updates.forEach((key, value) -> {
             switch (key) {
                 case "title" -> existingTask.setTitle((String) value);
@@ -111,6 +121,9 @@ public class TasksService {
         });
 
         taskDbService.saveTask(existingTask);
+        if (parentJiraId != null && cacheManager.getCache("taskCache") != null) {
+            cacheManager.getCache("taskCache").evict(parentJiraId);
+        }
         return ResponseEntity.ok(taskMapper.toTaskDto(existingTask));
     }
 
@@ -132,11 +145,15 @@ public class TasksService {
     @CacheEvict(value = "taskCache", key = "#id")
     public boolean deleteTask(Integer id) {
         TaskEntity existingTask = taskDbService.getTaskByJiraId(id);
-        if (existingTask == null) {
-            return false;
-        } else {
-            return taskDbService.deleteTask(existingTask.getId());
+        Integer parentJiraId = null;
+        if(existingTask.getParentTask()!= null){
+            parentJiraId = existingTask.getParentTask().getId();
         }
+        boolean result = taskDbService.deleteTask(existingTask.getId());
+        if (parentJiraId != null && cacheManager.getCache("taskCache") != null) {
+            cacheManager.getCache("taskCache").evict(parentJiraId);
+        }
+        return result;
     }
 
     public List<TaskDto> getAllTasks(Pageable pageable) {
@@ -201,11 +218,17 @@ public class TasksService {
                 }
             }
 
+
             default -> throw new RuntimeException("Invalid task type for linking");
         }
 
         taskDbService.saveTask(currentTask);
         taskDbService.saveTask(taskToLink);
+        // Clean up cache states programmatically for both IDs
+        if (cacheManager.getCache("taskCache") != null) {
+            cacheManager.getCache("taskCache").evict(linkTaskRequest.getCurrentTaskId());
+            cacheManager.getCache("taskCache").evict(linkTaskRequest.getTaskToLinkId());
+        }
 
         return ResponseEntity.ok("Issues linked successfully.");
     }
