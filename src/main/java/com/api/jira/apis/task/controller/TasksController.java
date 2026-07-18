@@ -29,8 +29,8 @@ public class TasksController {
     ResponseEntity<?> createTask(@Valid @NonNull @RequestBody CreateTaskRequest createTaskRequest,
                                  JwtAuthenticationToken auth) {
         Jwt jwt = auth.getToken();
-        String reporterEmail = jwt.getClaimAsString("email");
-        createTaskRequest.setReporter(reporterEmail);
+//        String reporterEmail = jwt.getClaimAsString("email");
+//        createTaskRequest.setReporter(reporterEmail);
         // jwt is not requried here since we are already passing the reporter email in the request body
         // but if you want to ensure that the reporter is always the authenticated user, you can uncomment the following line:
         // createTaskRequest.setReporter(reporterEmail);
