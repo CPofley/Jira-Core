@@ -2,10 +2,13 @@ package com.api.jira.apis.user.service;
 
 import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.model.UserDto;
+import com.api.jira.apis.user.model.UserSuggestionsDto;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -22,10 +25,10 @@ public class UserService {
         if (existingUserOpt.isPresent()) {
             // USER EXISTS: Update dynamic fields and return success (200 OK)
             UserEntity existingUser = existingUserOpt.get();
-            existingUser.setUsername(name);
-            existingUser.setPictureUrl(picture);
+            if(Objects.isNull(existingUser.getPictureUrl()) || existingUser.getPictureUrl().isEmpty()) {
+                existingUser.setPictureUrl(picture);
+            }
             existingUser.setLastLogin(LocalDateTime.now());
-
             Optional<UserDto> updatedUser = userDbService.save(existingUser);
             return ResponseEntity.ok().body(updatedUser);
         } else {
@@ -41,4 +44,7 @@ public class UserService {
         }
     }
 
+    public List<UserSuggestionsDto> getUsersByProject(Integer projectId) {
+        return userDbService.findByProjectId(projectId);
+    }
 }

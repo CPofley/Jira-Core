@@ -30,16 +30,22 @@ public class TaskEntity {
     @Column(name = "title", nullable = false)
     private String title;
 
-    @Column(name = "description", nullable = false, length = 1000)
+    @Column(name = "description", nullable = false, length = 10000)
     private String description;
 
     @Column(name = "type", nullable = false)
     private TaskType taskType;
 
+    // ManyToOne relationship with UserEntity for assignee and reporter
+    // A task may be assigned to a user (assignee) and reported by a user (reporter)
+    // but overall, many tasks can be assigned to the same user and reported by the same user, hence ManyToOne
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignee_id")
     private UserEntity assignee;
 
+    // ManyToOne relationship with UserEntity for assignee and reporter
+    // A task may be assigned to a user (assignee) and reported by a user (reporter)
+    // but overall, many tasks can be assigned to the same user and reported by the same user, hence ManyToOne
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reporter_id")
     private UserEntity reporter;
@@ -53,8 +59,6 @@ public class TaskEntity {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-   @Column(name = "created_by",nullable = false)
-    private String createdBy;
 // orphanRemoval means is we delete a task , its associated comments will be orphans so setting it to true will remove those orphans too
     // cascadeType means drill down i.e all underlying associated things
     // so any change will propagate to the underlying associated things update / delete etc.

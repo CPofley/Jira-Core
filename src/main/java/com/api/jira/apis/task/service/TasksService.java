@@ -1,6 +1,7 @@
 package com.api.jira.apis.task.service;
 
 import com.api.jira.apis.comment.mapper.CommentMapper;
+import com.api.jira.apis.exceptions.ExceptionTypes.TaskNotFoundException;
 import com.api.jira.apis.project.entity.ProjectEntity;
 import com.api.jira.apis.project.service.ProjectDbService;
 import com.api.jira.apis.task.entity.TaskEntity;
@@ -10,14 +11,15 @@ import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.mapper.UserMapper;
 import com.api.jira.apis.user.service.UserDbService;
 import jakarta.transaction.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
+@Transactional
 @Service
 public class TasksService {
 
@@ -43,28 +45,42 @@ public class TasksService {
                 .orElseThrow(() -> new RuntimeException("Reporter not found with email: " + taskEntity.getReporter()));
         Optional<ProjectEntity> projectEntity = projectDbService.findProjectById(createTaskRequest.getProjectId());
         if(projectEntity.isEmpty()){
-            throw new RuntimeException("There is not active project "+createTaskRequest.getProjectId()+" to map this task.");
+            throw new TaskNotFoundException("There is not active project "+createTaskRequest.getProjectId()+" to map this task.");
         }
         taskEntity.setProject(projectEntity.get());
         taskEntity.setReporter(reporterEntity);
-        taskEntity.setCreatedBy(createTaskRequest.getCreatedBy());
         if(createTaskRequest.getAssignee() != null && !createTaskRequest.getAssignee().isEmpty()) {
             userDbService.findByEmail(createTaskRequest.getAssignee())
                     .ifPresent(taskEntity::setAssignee);
         }
-        return taskDbService.saveTask(taskEntity);
+        if(validateRequest(taskEntity)){
+            return taskDbService.saveTask(taskEntity);
+        }
+        else {
+            throw new RuntimeException("Assignee and Reporter are mandatory fields.");
+        }
+
     }
 
-    public ResponseEntity<GetTaskDetailsResponse> getTaskDetails(Integer jiraId) {
+    private boolean validateRequest(TaskEntity taskEntity) {
+        if(Objects.isNull(taskEntity.getAssignee()) || Objects.isNull(taskEntity.getReporter())){
+            throw new RuntimeException("Assignee and Reporter are mandatory fields.");
+        }
+        else
+            return true;
+    }
+
+    @Cacheable(value = "taskCache", key = "#jiraId", condition = "#jiraId != null", unless = "#result == null")
+    public TaskDto getTaskDetails(Integer jiraId) {
         TaskEntity taskEntity = taskDbService.getTaskByJiraId(jiraId);
 
         if (taskEntity == null) {
-            throw new RuntimeException("Task not found with jiraId: " + jiraId);
+            throw new TaskNotFoundException("Task not found with task ID: " + jiraId);
         }
-        GetTaskDetailsResponse response = new GetTaskDetailsResponse(taskMapper.toTaskDto(taskEntity));
-        return ResponseEntity.ok(response);
+       return taskMapper.toTaskDto(taskEntity);
     }
 
+    @CacheEvict(value = "taskCache", key = "#id")
     public ResponseEntity<TaskDto> updateTaskFields(Integer id, Map<String, Object> updates) {
         TaskEntity existingTask = taskDbService.getTaskByJiraId(id);
         if (existingTask == null) {
@@ -75,8 +91,16 @@ public class TasksService {
             switch (key) {
                 case "title" -> existingTask.setTitle((String) value);
                 case "description" -> existingTask.setDescription((String) value);
-                case "assignee" -> existingTask.setAssignee((UserEntity) value);
-                case "reporter" -> existingTask.setReporter( (UserEntity)value);
+                case "assignee" ->{
+//                    Optional<UserEntity> assignee = userDbService.findByUserName((String) value);
+//                    existingTask.setAssignee(assignee.orElse(null));
+                    existingTask.setAssignee((UserEntity) value);
+                }
+                case "reporter" -> {
+//                    Optional<UserEntity> reporter = userDbService.findByUserName((String) value);
+//                    existingTask.setReporter(reporter.orElse(null));
+                    existingTask.setReporter((UserEntity) value);
+                }
                 case "taskStatus" -> existingTask.setTaskStatus(Enum.valueOf(TaskStatus.class, (String) value));
                 case "priority" -> existingTask.setPriority(
                         value != null ? Priority.valueOf(value.toString().toUpperCase()) : null
@@ -105,6 +129,7 @@ public class TasksService {
         return taskMapper.toTaskDtoList(taskEntities);
     }
 
+    @CacheEvict(value = "taskCache", key = "#id")
     public boolean deleteTask(Integer id) {
         TaskEntity existingTask = taskDbService.getTaskByJiraId(id);
         if (existingTask == null) {
@@ -186,6 +211,6 @@ public class TasksService {
     }
 
     public List<TaskDto> taskLinkedToProject(Integer projectId, Pageable pageable){
-        return taskMapper.toTaskDtoList(taskDbService.getTasksForCurrentProject(projectId,pageable).getContent());
+        return taskMapper.toTaskDtoList(taskDbService.getTasksForCurrentProject(projectId,pageable).getContent().stream().sorted(Comparator.comparing(TaskEntity::getCreatedAt).reversed()).toList());
     }
 }

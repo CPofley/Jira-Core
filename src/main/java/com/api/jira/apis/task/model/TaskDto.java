@@ -17,7 +17,6 @@ public class TaskDto {
     private TaskStatus taskStatus;
     private Priority priority;
     private LocalDateTime createdAt;
-    private String createdBy;
     private List<CommentDto> comments;
     private ParentTaskDto parentTask;
     private List<ChildTasksDto> subIssues;

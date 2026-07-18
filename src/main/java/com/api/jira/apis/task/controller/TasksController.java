@@ -30,10 +30,10 @@ public class TasksController {
                                  JwtAuthenticationToken auth) {
         Jwt jwt = auth.getToken();
         String reporterEmail = jwt.getClaimAsString("email");
-        String reporterName = jwt.getClaimAsString("name");
-
         createTaskRequest.setReporter(reporterEmail);
-        createTaskRequest.setCreatedBy(reporterName);
+        // jwt is not requried here since we are already passing the reporter email in the request body
+        // but if you want to ensure that the reporter is always the authenticated user, you can uncomment the following line:
+        // createTaskRequest.setReporter(reporterEmail);
         Integer taskId = tasksService.createTask(createTaskRequest);
         return ResponseEntity.ok(Map.of("taskId", taskId));
     }
@@ -41,12 +41,8 @@ public class TasksController {
     @GetMapping("/get/created-task")
     ResponseEntity<?> getCreatedTask(@RequestParam Integer taskId) {
         // Here you can implement the logic to get tasks created by a specific user
-        ResponseEntity<GetTaskDetailsResponse> response =  tasksService.getTaskDetails(taskId);
-        if(response.getStatusCode().is2xxSuccessful()) {
-            return ResponseEntity.ok(response.getBody());
-        } else {
-            return ResponseEntity.status(response.getStatusCode()).body(response.getBody());
-        }
+        TaskDto response =  tasksService.getTaskDetails(taskId);
+        return ResponseEntity.ok(response);
     }
     @GetMapping("/config")
     public ResponseEntity<TaskMetadataConfig> getTaskMetadataConfig() {

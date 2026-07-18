@@ -2,7 +2,9 @@ package com.api.jira.apis.task.service;
 
 
 import com.api.jira.apis.task.entity.TaskEntity;
+import com.api.jira.apis.task.mapper.TaskMapper;
 import com.api.jira.apis.task.model.Priority;
+import com.api.jira.apis.task.model.TaskDto;
 import com.api.jira.apis.task.model.TaskStatus;
 import com.api.jira.apis.task.model.TaskType;
 import com.api.jira.apis.task.repository.TasksRepository;
@@ -19,9 +21,11 @@ import java.util.List;
 public class TaskDbService {
 
     private final TasksRepository tasksRepository;
+    private final TaskMapper taskMapper;
 
-    public TaskDbService(TasksRepository tasksRepository) {
+    public TaskDbService(TasksRepository tasksRepository, TaskMapper taskMapper) {
         this.tasksRepository = tasksRepository;
+        this.taskMapper = taskMapper;
     }
 
     // 2. Pre-caches a newly created task so the details page redirection hits the cache instantly
@@ -31,7 +35,6 @@ public class TaskDbService {
         return savedTask.getId();
     }
 
-    @Cacheable(value = "tasks", key = "#id", condition = "#id != null")
     public TaskEntity getTaskByJiraId(Integer jiraId) {
         return tasksRepository.findByJiraId(jiraId);
     }

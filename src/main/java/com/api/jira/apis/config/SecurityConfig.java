@@ -40,6 +40,7 @@ public class SecurityConfig {
                 // 3. Open up Swagger, but LOCK DOWN your API routes
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/tasks/**").authenticated() // Require login for tasks!
                         .requestMatchers("/api/users/**").authenticated() // Require login for user sync!
                         .anyRequest().authenticated()

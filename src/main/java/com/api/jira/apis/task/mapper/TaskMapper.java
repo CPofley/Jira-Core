@@ -2,11 +2,7 @@ package com.api.jira.apis.task.mapper;
 
 import com.api.jira.apis.comment.mapper.CommentMapper;
 import com.api.jira.apis.task.entity.TaskEntity;
-import com.api.jira.apis.task.model.CreateTaskRequest;
-import com.api.jira.apis.task.model.TaskDto;
-import com.api.jira.apis.task.model.ParentTaskDto;
-import com.api.jira.apis.task.model.ChildTasksDto;
-import com.api.jira.apis.task.model.TaskStatus;
+import com.api.jira.apis.task.model.*;
 import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.sharedMapper.mapper.CommonMapper;
 import org.mapstruct.AfterMapping;
@@ -63,6 +59,9 @@ public interface TaskMapper {
     default void handleCustomMapping(CreateTaskRequest request, @MappingTarget TaskEntity entity) {
         if (entity.getTaskStatus() == null) {
             entity.setTaskStatus(TaskStatus.TO_DO);
+        }
+        if(entity.getPriority() == null){
+            entity.setPriority(Priority.LOW);
         }
         entity.setCreatedAt(LocalDateTime.now());
     }
