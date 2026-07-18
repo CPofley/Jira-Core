@@ -1,7 +1,9 @@
 package com.api.jira.apis.user.service;
 
+import com.api.jira.apis.exceptions.ExceptionTypes.UserNotFoundException;
 import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.model.UserDto;
+import com.api.jira.apis.user.model.UserProfileDto;
 import com.api.jira.apis.user.model.UserSuggestionsDto;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -46,5 +48,13 @@ public class UserService {
 
     public List<UserSuggestionsDto> getUsersByProject(Integer projectId) {
         return userDbService.findByProjectId(projectId);
+    }
+
+    public UserProfileDto getUserProfileLinkByEmailId(String email){
+        UserProfileDto userProfileDto =   userDbService.findByReporterEmail(email);
+        if(userProfileDto==null){
+            throw new UserNotFoundException("User not found with email : "+email);
+        }
+        return userProfileDto;
     }
 }

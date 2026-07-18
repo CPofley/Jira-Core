@@ -1,14 +1,14 @@
 package com.api.jira.apis.user.controller;
 
-import com.api.jira.apis.user.model.UserDto;
+import com.api.jira.apis.user.model.UserProfileDto;
 import com.api.jira.apis.user.model.UserSuggestionsDto;
 import com.api.jira.apis.user.service.UserService;
+import jakarta.validation.constraints.Email;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.oauth2.jwt.Jwt;
-import java.time.LocalDateTime;
+
 import java.util.List;
 
 @RestController
@@ -39,6 +39,12 @@ public class UserController {
         else
             return ResponseEntity.badRequest().body("No users found for projectId: " + projectId);
 
+    }
+
+    @GetMapping("/by-email/{email}")
+    public ResponseEntity<UserProfileDto> getUserByEmail(@PathVariable String email){
+        UserProfileDto userProfileDto = userService.getUserProfileLinkByEmailId(email);
+        return ResponseEntity.ok().body(userProfileDto);
     }
 
 
