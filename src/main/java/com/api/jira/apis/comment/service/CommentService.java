@@ -28,7 +28,7 @@ public class CommentService {
 
     @Transactional
     // 🛠️ Evicts the specific task from cache so the next Detail Page load gets the fresh comment stream from DB
-    @CacheEvict(value = "tasks", key = "#commentRequest.taskId", beforeInvocation = true)
+    @CacheEvict(value = "taskCache", key = "#commentRequest.taskId", beforeInvocation = true)
     public ResponseEntity<?> createComment(CommentRequest commentRequest) {
         TaskEntity existingTask = taskDbService.getTaskByJiraId(commentRequest.getTaskId());
         CommentEntity commentEntity = new CommentEntity();
