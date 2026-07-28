@@ -36,14 +36,17 @@ public class TaskDbService {
     }
 
     public TaskEntity getTaskByJiraId(Integer jiraId) {
-        // 1. Fetch task and its comments
-        TaskEntity task = tasksRepository.findByJiraIdWithComments(jiraId);
-
-        if (task != null) {
-            // 2. Fetch task and its sub-issues into the same persistence context
-            tasksRepository.findByJiraIdWithSubIssues(jiraId);
-        }
-        return task;
+//        // 1. Fetch task and its comments
+//        TaskEntity task = tasksRepository.findByJiraIdWithComments(jiraId);
+//
+//        if (task != null) {
+//            // 2. Fetch task and its sub-issues into the same persistence context
+//            tasksRepository.findByJiraIdWithSubIssues(jiraId);
+//        }
+        /**
+         * Added entityGraph in repo all and updated its fields to set in entity so no need of separate DB calls
+         */
+        return tasksRepository.findByJiraId(jiraId);
     }
 
     public List<TaskEntity> getTasksByStatus(TaskStatus taskStatus, Pageable pageable,Integer projectId) {

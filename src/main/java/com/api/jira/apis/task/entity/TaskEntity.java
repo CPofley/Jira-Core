@@ -10,10 +10,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
-
 import java.time.LocalDateTime;
-import java.util.Date;
-import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "tasks")
@@ -30,7 +28,7 @@ public class TaskEntity {
     @Column(name = "title", nullable = false)
     private String title;
 
-    @Column(name = "description", nullable = false, length = 10000)
+    @Column(name = "description", length = 10000)
     private String description;
 
     @Column(name = "type", nullable = false)
@@ -63,7 +61,7 @@ public class TaskEntity {
     // cascadeType means drill down i.e all underlying associated things
     // so any change will propagate to the underlying associated things update / delete etc.
     @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<CommentEntity> comments;
+    private Set<CommentEntity> comments;
 
     // 1. THE PARENT LINK (Many issues can point to the same parent)
     // created this to determine parent tasks for current task
@@ -74,7 +72,7 @@ public class TaskEntity {
     // 2. THE CHILDREN LINK (One parent issue can have a list of child issues underneath it)
     // Created this to determine child tasks for current task
     @OneToMany(mappedBy = "parentTask", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<TaskEntity> subIssues;
+    private Set<TaskEntity> subIssues;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false) // Links this task to a specific project
@@ -93,7 +91,7 @@ public class TaskEntity {
 
     public void addChildTask(TaskEntity child) {
         if (this.subIssues == null) {
-            this.subIssues = new java.util.ArrayList<>();
+            this.subIssues = new java.util.HashSet<>();
         }
         this.subIssues.add(child);
         child.setParentTask(this);
