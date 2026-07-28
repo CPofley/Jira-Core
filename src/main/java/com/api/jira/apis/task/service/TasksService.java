@@ -57,6 +57,9 @@ public class TasksService {
             userDbService.findByEmail(createTaskRequest.getAssignee())
                     .ifPresent(taskEntity::setAssignee);
         }
+        if (taskEntity.getDescription() == null) {
+            taskEntity.setDescription("");
+        }
         if(validateRequest(taskEntity)){
             return taskDbService.saveTask(taskEntity);
         }
