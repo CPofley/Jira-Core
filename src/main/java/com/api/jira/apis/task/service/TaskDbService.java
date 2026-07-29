@@ -1,21 +1,21 @@
 package com.api.jira.apis.task.service;
 
 
+import com.api.jira.apis.project.entity.ProjectEntity;
 import com.api.jira.apis.task.entity.TaskEntity;
 import com.api.jira.apis.task.mapper.TaskMapper;
 import com.api.jira.apis.task.model.Priority;
-import com.api.jira.apis.task.model.TaskDto;
 import com.api.jira.apis.task.model.TaskStatus;
 import com.api.jira.apis.task.model.TaskType;
 import com.api.jira.apis.task.repository.TasksRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class TaskDbService {
@@ -33,6 +33,16 @@ public class TaskDbService {
     public Integer saveTask(TaskEntity taskEntity) {
         TaskEntity savedTask = tasksRepository.save(taskEntity);
         return savedTask.getId();
+    }
+
+    @CacheEvict(value = "tasks", key = "#parentId", condition = "#parentId != null")
+    public TaskEntity flushChanges(TaskEntity taskEntity, Integer parentId){
+        return tasksRepository.saveAndFlush(taskEntity);
+    }
+
+    // 🟢 REMOVED @CacheEvict to fix the "Null key returned for cache operation" SpEL error
+    public TaskEntity flushChanges(TaskEntity taskEntity){
+        return tasksRepository.saveAndFlush(taskEntity);
     }
 
     public TaskEntity getTaskByJiraId(Integer jiraId) {
@@ -79,5 +89,10 @@ public class TaskDbService {
     public Page<TaskEntity> getTasksForCurrentProject(Integer projectId, Pageable page){
         return tasksRepository.tasksByProjectId(projectId,page);
     }
+
+    public Optional<ProjectEntity> getProjectByTask(Integer taskId){
+        return tasksRepository.getProjectByTaskId(taskId);
+    }
+
 
 }

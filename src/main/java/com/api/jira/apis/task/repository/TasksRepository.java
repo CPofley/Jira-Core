@@ -1,5 +1,6 @@
 package com.api.jira.apis.task.repository;
 
+import com.api.jira.apis.project.entity.ProjectEntity;
 import com.api.jira.apis.task.entity.TaskEntity;
 import com.api.jira.apis.task.model.Priority;
 import com.api.jira.apis.task.model.TaskStatus;
@@ -14,6 +15,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
 
 @Repository
 public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
@@ -56,4 +59,7 @@ public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
     // Query 2: Fetch the task along with sub-issues
     @Query("SELECT t FROM TaskEntity t LEFT JOIN FETCH t.subIssues WHERE t.id = :jiraId")
     TaskEntity findByJiraIdWithSubIssues(@Param("jiraId") Integer jiraId);
+
+    @Query("SELECT t.project FROM TaskEntity t where t.id= :jiraId")
+    Optional<ProjectEntity> getProjectByTaskId(@Param("jiraId") Integer jiraId);
 }

@@ -52,4 +52,8 @@ public class ProjectDbService {
         List<UserEntity> userEntities = projectRepository.getUsersTaggedToProject(projectId);
         return userMapper.toUserDtoList(userEntities);
     }
+
+    public ProjectEntity getProjectEntityById(Integer projectId){
+        return projectRepository.getProjectByProjectId(projectId).orElse(null);
+    }
 }

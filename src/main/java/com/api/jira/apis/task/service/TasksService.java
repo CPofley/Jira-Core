@@ -11,6 +11,7 @@ import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.mapper.UserMapper;
 import com.api.jira.apis.user.service.UserDbService;
 import jakarta.transaction.Transactional;
+import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Transactional
@@ -77,17 +79,17 @@ public class TasksService {
             return true;
     }
 
-    @Cacheable(value = "taskCache", key = "#jiraId", condition = "#jiraId != null", unless = "#result == null")
+    @Cacheable(value = "tasks", key = "#jiraId", condition = "#jiraId != null", unless = "#result == null")
     public TaskDto getTaskDetails(Integer jiraId) {
         TaskEntity taskEntity = taskDbService.getTaskByJiraId(jiraId);
 
         if (taskEntity == null) {
             throw new TaskNotFoundException("Task not found with task ID: " + jiraId);
         }
-       return taskMapper.toTaskDto(taskEntity);
+        return taskMapper.toTaskDto(taskEntity);
     }
 
-    @CacheEvict(value = "taskCache", key = "#id")
+    @Transactional
     public ResponseEntity<TaskDto> updateTaskFields(Integer id, Map<String, Object> updates) {
         TaskEntity existingTask = taskDbService.getTaskByJiraId(id);
         if (existingTask == null) {
@@ -123,11 +125,16 @@ public class TasksService {
             }
         });
 
-        taskDbService.saveTask(existingTask);
-        if (parentJiraId != null && cacheManager.getCache("taskCache") != null) {
-            cacheManager.getCache("taskCache").evict(parentJiraId);
+        // 🟢 1. Flush changes directly to the database first
+        TaskEntity savedTask = taskDbService.flushChanges(existingTask);
+
+        // 🟢 Clear ALL entries in "tasks" cache to guarantee no stale child collections remain
+        Cache tasksCache = cacheManager.getCache("tasks");
+        if (tasksCache != null) {
+            tasksCache.clear(); // Flushes entire task cache region
         }
-        return ResponseEntity.ok(taskMapper.toTaskDto(existingTask));
+        // 🟢 3. Map savedTask (freshly flushed instance) instead of existingTask
+        return ResponseEntity.ok(taskMapper.toTaskDto(savedTask));
     }
 
     public List<TaskDto> getTasksByProjectAndStatus(TaskStatus status, Pageable pageable, Integer projectId) {
@@ -145,7 +152,7 @@ public class TasksService {
         return taskMapper.toTaskDtoList(taskEntities);
     }
 
-    @CacheEvict(value = "taskCache", key = "#id")
+    @CacheEvict(value = "tasks", key = "#id")
     public boolean deleteTask(Integer id) {
         TaskEntity existingTask = taskDbService.getTaskByJiraId(id);
         Integer parentJiraId = null;
@@ -153,8 +160,8 @@ public class TasksService {
             parentJiraId = existingTask.getParentTask().getId();
         }
         boolean result = taskDbService.deleteTask(existingTask.getId());
-        if (parentJiraId != null && cacheManager.getCache("taskCache") != null) {
-            cacheManager.getCache("taskCache").evict(parentJiraId);
+        if (parentJiraId != null && cacheManager.getCache("tasks") != null) {
+            cacheManager.getCache("tasks").evict(parentJiraId);
         }
         return result;
     }
@@ -228,9 +235,10 @@ public class TasksService {
         taskDbService.saveTask(currentTask);
         taskDbService.saveTask(taskToLink);
         // Clean up cache states programmatically for both IDs
-        if (cacheManager.getCache("taskCache") != null) {
-            cacheManager.getCache("taskCache").evict(linkTaskRequest.getCurrentTaskId());
-            cacheManager.getCache("taskCache").evict(linkTaskRequest.getTaskToLinkId());
+        // 🟢 Fixed: Evicting directly from "tasks" cache region
+        if (cacheManager.getCache("tasks") != null) {
+            cacheManager.getCache("tasks").evict(linkTaskRequest.getCurrentTaskId());
+            cacheManager.getCache("tasks").evict(linkTaskRequest.getTaskToLinkId());
         }
 
         return ResponseEntity.ok("Issues linked successfully.");
@@ -238,5 +246,25 @@ public class TasksService {
 
     public List<TaskDto> taskLinkedToProject(Integer projectId, Pageable pageable){
         return taskMapper.toTaskDtoList(taskDbService.getTasksForCurrentProject(projectId,pageable).getContent().stream().sorted(Comparator.comparing(TaskEntity::getCreatedAt).reversed()).toList());
+    }
+
+    @CacheEvict(value = "tasks", key = "#createSubTaskRequest.currentTaskId")
+    public TaskDto createSubTask(CreateSubTaskRequest createSubTaskRequest) {
+        TaskEntity parentTask = taskDbService.getTaskByJiraId(createSubTaskRequest.getCurrentTaskId());
+
+        TaskEntity newSubTask = new TaskEntity();
+        newSubTask.setTitle(createSubTaskRequest.getTitle());
+        newSubTask.setTaskType(createSubTaskRequest.getTaskType() != null ? createSubTaskRequest.getTaskType() : TaskType.SUB_TASK);
+        newSubTask.setTaskStatus(TaskStatus.TO_DO);
+        newSubTask.setPriority(Priority.LOW);
+        newSubTask.setCreatedAt(LocalDateTime.now());
+        newSubTask.setDescription("");
+        newSubTask.setProject(parentTask.getProject());
+
+        // Set foreign key directly
+        newSubTask.setParentTask(parentTask);
+
+        TaskEntity savedSubTask = taskDbService.flushChanges(newSubTask, parentTask.getId());
+        return taskMapper.toTaskDto(savedSubTask);
     }
 }
