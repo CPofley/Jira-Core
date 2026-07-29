@@ -52,7 +52,7 @@ public class CommentService {
                         .comment(c.getComment())
                         .author(c.getAuthor())
                         .taskId(c.getTask().getId())
-                        // If you have a createdAt field, map it here too!
+                        .createdAt(c.getTimestamp())
                         .build()
         ).collect(Collectors.toList());
 

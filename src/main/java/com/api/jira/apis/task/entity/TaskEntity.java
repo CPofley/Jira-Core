@@ -16,8 +16,8 @@ import java.util.Set;
 @Entity
 @Table(name = "tasks")
 @Data
-@ToString(exclude = "comments")
-@EqualsAndHashCode(exclude = "comments")
+@ToString(exclude = {"comments", "parentTask", "subIssues"})
+@EqualsAndHashCode(exclude = {"comments", "parentTask", "subIssues"})
 public class TaskEntity {
 
     @Id

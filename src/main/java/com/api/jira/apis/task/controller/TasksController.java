@@ -143,5 +143,10 @@ public class TasksController {
         return ResponseEntity.ok(tasks);
     }
 
+    @PostMapping("/create/sub-task")
+    public ResponseEntity<TaskDto> createSubTask(@Valid @RequestBody CreateSubTaskRequest createSubTaskRequest){
+        return ResponseEntity.ok().body(tasksService.createSubTask(createSubTaskRequest));
+    }
+
 
 }

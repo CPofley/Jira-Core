@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Data
 public class TaskDto {
@@ -17,7 +18,7 @@ public class TaskDto {
     private TaskStatus taskStatus;
     private Priority priority;
     private LocalDateTime createdAt;
-    private List<CommentDto> comments;
+    private Set<CommentDto> comments;
     private ParentTaskDto parentTask;
-    private List<ChildTasksDto> subIssues;
+    private Set<ChildTasksDto> subIssues;
 }

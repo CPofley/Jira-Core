@@ -8,4 +8,5 @@ public class ChildTasksDto {
     private String title;
     private String taskType;
     private String taskStatus;
+    private Priority priority;
 }
