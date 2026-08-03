@@ -63,7 +63,13 @@ public class TasksService {
             taskEntity.setDescription("");
         }
         if(validateRequest(taskEntity)){
-            return taskDbService.saveTask(taskEntity);
+            TaskDto dto =  taskDbService.saveTask(taskEntity);
+            if(dto != null && dto.getId() != null){
+                return dto.getId();
+            }
+            else{
+                throw new RuntimeException("Task creation failed.");
+            }
         }
         else {
             throw new RuntimeException("Assignee and Reporter are mandatory fields.");
