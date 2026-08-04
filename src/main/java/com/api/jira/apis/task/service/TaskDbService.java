@@ -5,6 +5,7 @@ import com.api.jira.apis.project.entity.ProjectEntity;
 import com.api.jira.apis.task.entity.TaskEntity;
 import com.api.jira.apis.task.mapper.TaskMapper;
 import com.api.jira.apis.task.model.Priority;
+import com.api.jira.apis.task.model.TaskDto;
 import com.api.jira.apis.task.model.TaskStatus;
 import com.api.jira.apis.task.model.TaskType;
 import com.api.jira.apis.task.repository.TasksRepository;
@@ -28,11 +29,11 @@ public class TaskDbService {
         this.taskMapper = taskMapper;
     }
 
-    // 2. Removes old entry from cache
-    @CacheEvict(value = "tasks", key = "#taskEntity.id", condition = "#taskEntity.id != null")
-    public Integer saveTask(TaskEntity taskEntity) {
+    // 2. Pre-caches a newly created task so the details page redirection hits the cache instantly
+    @CachePut(value = "tasks", key = "#taskEntity.id", condition = "#taskEntity.id != null")
+    public TaskDto saveTask(TaskEntity taskEntity) {
         TaskEntity savedTask = tasksRepository.save(taskEntity);
-        return savedTask.getId();
+        return taskMapper.toTaskDto(taskEntity);
     }
 
     @CacheEvict(value = "tasks", key = "#parentId", condition = "#parentId != null")
