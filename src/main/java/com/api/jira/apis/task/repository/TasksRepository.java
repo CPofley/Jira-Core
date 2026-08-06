@@ -62,4 +62,19 @@ public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
 
     @Query("SELECT t.project FROM TaskEntity t where t.id= :jiraId")
     Optional<ProjectEntity> getProjectByTaskId(@Param("jiraId") Integer jiraId);
+
+    @Modifying
+    @Query("UPDATE TaskEntity t SET " +
+            " t.title = COALESCE(:title, t.title)," +
+            " t.description = COALESCE(:description, t.description)," +
+            " t.taskType = COALESCE(:taskType, t.taskType)," +
+            " t.taskStatus = COALESCE(:taskStatus, t.taskStatus)," +
+            " t.priority = COALESCE(:priority, t.priority)," +
+            " WHERE t.id = :jiraId")
+    void updateTask(@Param("jiraId") Integer jiraId,
+                    @Param("title") String title,
+                    @Param("description") String description,
+                    @Param("taskType") TaskType taskType,
+                    @Param("taskStatus") TaskStatus taskStatus,
+                    @Param("priority") Priority priority);
 }
