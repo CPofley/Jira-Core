@@ -2,3 +2,5 @@ Next Steps to this app:
 1. Create role for each user ( Ex. Admin, normal user )
 2. Land normal user to their respective project's dashboard since we have projectId_userId
 3. Add invite to project option which admin can send to normal user
+4. To sue app on local system update react front end to: export const API_BASE_URL = 'http://localhost:8080'; in src/config/api.js of UI app
+5. Then restart the core & ui app (npm run dev)
