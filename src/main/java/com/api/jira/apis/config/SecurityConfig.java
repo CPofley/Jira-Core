@@ -20,7 +20,6 @@ public class SecurityConfig {
 
     private final DevAuthenticationFilter devAuthenticationFilter;
 
-    // Inject our new backdoor filter
     public SecurityConfig(DevAuthenticationFilter devAuthenticationFilter) {
         this.devAuthenticationFilter = devAuthenticationFilter;
     }
@@ -28,27 +27,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 1. Disable CSRF completely for local REST APIs
                 .csrf(AbstractHttpConfigurer::disable)
-
-                // 2. Attach our custom CORS configuration source right into the security filter chain
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-                // --- INJECT THE BACKDOOR HERE ---
                 .addFilterBefore(devAuthenticationFilter, BearerTokenAuthenticationFilter.class)
-
-                // 3. Open up Swagger, but LOCK DOWN your API routes
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers("/api/tasks/**").authenticated() // Require login for tasks!
-                        .requestMatchers("/api/users/**").authenticated() // Require login for user sync!
+                        .requestMatchers("/api/users/sync").permitAll() // Permitted for token sync
+                        .requestMatchers("/api/tasks/**").authenticated()
+                        .requestMatchers("/api/users/**").authenticated()
                         .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
-
-                // 4. THIS IS THE MAGIC LINE YOU WERE MISSING:
-                // It tells Spring to actually parse the Bearer token and create the JwtAuthenticationToken!
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
         return http.build();
@@ -57,18 +47,27 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Allow your Vite React Dev server port explicitly
-        configuration.setAllowedOrigins(List.of("http://localhost:5173","http://192.168.1.15.nip.io:5173"));
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://192.168.1.5.nip.io:5173",
+                "http://192.168.1.5:5173"
+        ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With","Accept",
+        configuration.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "Accept",
                 "Origin",
                 "Access-Control-Request-Method",
-                "Access-Control-Request-Headers"));
+                "Access-Control-Request-Headers"
+        ));
         configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration); // Apply globally to all paths
+        source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 }
