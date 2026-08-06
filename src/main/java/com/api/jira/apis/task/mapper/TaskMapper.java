@@ -27,6 +27,7 @@ public interface TaskMapper {
     TaskEntity toTaskEntity(CreateTaskRequest createTaskRequest);
 
     // Main mapping method
+    @Mapping(target = "updatedBy", source = "updatedBy.username")
     TaskDto toTaskDto(TaskEntity taskEntity);
 
     List<TaskDto> toTaskDtoList(List<TaskEntity> taskEntities);
@@ -75,5 +76,6 @@ public interface TaskMapper {
         return user.getUsername() != null ? user.getUsername() : user.getEmail();
     }
 
+    @Mapping(target = "updatedBy", source = "updatedBy.username")
     TaskUpdateEventDto toTaskUpdateEventDto(TaskEntity taskEntity);
 }

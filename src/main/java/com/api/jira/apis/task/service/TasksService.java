@@ -10,8 +10,9 @@ import com.api.jira.apis.task.model.*;
 import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.mapper.UserMapper;
 import com.api.jira.apis.user.service.UserDbService;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -19,7 +20,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
-
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -38,9 +38,10 @@ public class TasksService {
     private final ProjectDbService projectDbService;
     private final CacheManager cacheManager;
     private final Executor threadConfig;
-    private SimpMessagingTemplate messagingTemplate; // Optional until WebSocket config is added in Step 4
+    private final SimpMessagingTemplate messagingTemplate;
 
-    public TasksService(TaskMapper taskMapper, TaskDbService taskDbService, CommentMapper commentMapper, UserDbService userDbService, UserMapper userMapper, ProjectDbService projectDbService, CacheManager cacheManager, Executor threadConfig) {
+    public TasksService(TaskMapper taskMapper, TaskDbService taskDbService, CommentMapper commentMapper, UserDbService userDbService, UserMapper userMapper, ProjectDbService projectDbService, CacheManager cacheManager,
+                        @Qualifier("customExecutor") Executor threadConfig, SimpMessagingTemplate messagingTemplate) {
         this.taskMapper = taskMapper;
         this.taskDbService = taskDbService;
         this.commentMapper = commentMapper;
@@ -49,6 +50,7 @@ public class TasksService {
         this.projectDbService = projectDbService;
         this.cacheManager = cacheManager;
         this.threadConfig = threadConfig;
+        this.messagingTemplate = messagingTemplate;
     }
 
     public Integer createTask(CreateTaskRequest createTaskRequest) {
@@ -103,51 +105,58 @@ public class TasksService {
 
     @Transactional
     public CompletableFuture<TaskDto> updateTaskFields(UpdateTaskRequest updateTaskRequest) {
-        Map<String,Object> updates = updateTaskRequest.getFields();
+        Map<String, Object> updates = updateTaskRequest.getFields();
         Integer id = updateTaskRequest.getTaskId();
-        return CompletableFuture.supplyAsync(()->{
-            AtomicInteger result = new AtomicInteger();
-            Optional<UserEntity> updatedBy = userDbService.findByEmail(updateTaskRequest.getEmailId());
-           updates.forEach((key,value)->{
-               switch (key) {
-                   case "title" -> {
+        return CompletableFuture.supplyAsync(() -> {
+                    AtomicInteger result = new AtomicInteger();
+                    Optional<UserEntity> updatedBy = userDbService.findByEmail(updateTaskRequest.getEmailId());
 
-                       result.set(taskDbService.updatePartialTask(id, (String) value, null, null, null, null, updatedBy.orElse(null), LocalDateTime.now()));
-                   }
-                   case "description" -> result.set(taskDbService.updatePartialTask(id, null, (String) value, null, null, null,updatedBy.orElse(null), LocalDateTime.now()));
-                   case "taskType" -> {
-                       TaskType taskType = value != null ? TaskType.valueOf(value.toString().toUpperCase()) : null;
-                      result.set(taskDbService.updatePartialTask(id, null, null, taskType, null, null,updatedBy.orElse(null), LocalDateTime.now()));
-                   }
-                   case "taskStatus" -> {
-                       TaskStatus taskStatus = value != null ? TaskStatus.valueOf(value.toString().toUpperCase()) : null;
-                       result.set(taskDbService.updatePartialTask(id, null, null, null, taskStatus, null,updatedBy.orElse(null), LocalDateTime.now()));
-                   }
-                   case "priority" -> {
-                       Priority priority = value != null ? Priority.valueOf(value.toString().toUpperCase()) : null;
-                       result.set(taskDbService.updatePartialTask(id, null, null, null, null, priority,updatedBy.orElse(null), LocalDateTime.now()));
-                   }
-                   default -> throw new IllegalArgumentException("Invalid field: " + key);
-               }
+                    updates.forEach((key, value) -> {
+                        switch (key) {
+                            case "title" ->
+                                    result.set(taskDbService.updatePartialTask(id, (String) value, null, null, null, null, updatedBy.orElse(null), LocalDateTime.now()));
+                            case "description" ->
+                                    result.set(taskDbService.updatePartialTask(id, null, (String) value, null, null, null, updatedBy.orElse(null), LocalDateTime.now()));
+                            case "taskType" -> {
+                                TaskType taskType = value != null ? TaskType.valueOf(value.toString().toUpperCase()) : null;
+                                result.set(taskDbService.updatePartialTask(id, null, null, taskType, null, null, updatedBy.orElse(null), LocalDateTime.now()));
+                            }
+                            case "taskStatus" -> {
+                                TaskStatus taskStatus = value != null ? TaskStatus.valueOf(value.toString().toUpperCase()) : null;
+                                result.set(taskDbService.updatePartialTask(id, null, null, null, taskStatus, null, updatedBy.orElse(null), LocalDateTime.now()));
+                            }
+                            case "priority" -> {
+                                Priority priority = value != null ? Priority.valueOf(value.toString().toUpperCase()) : null;
+                                result.set(taskDbService.updatePartialTask(id, null, null, null, null, priority, updatedBy.orElse(null), LocalDateTime.now()));
+                            }
+                            default -> throw new IllegalArgumentException("Invalid field: " + key);
+                        }
+                    });
 
-           });
-           if(result.getAcquire()==0){
-               throw new TaskNotFoundException("Task not found with task ID: " + id);
-           }
-           TaskEntity updatedTask = taskDbService.getTaskByJiraId(id);
-           if (cacheManager.getCache("tasks") != null) {
-               Objects.requireNonNull(cacheManager.getCache("tasks")).evict(id);
-           }
-           return taskMapper.toTaskDto(updatedTask);
-        }, threadConfig)
-                .thenApply(updatedTask ->{
-            TaskUpdateEventDto event = new TaskUpdateEventDto();
-            BeanUtils.copyProperties(updatedTask, event);
-            if (messagingTemplate != null) {
-                messagingTemplate.convertAndSend("/topic/tasks/" + id, event);
-            }
-            return updatedTask;
-        });
+                    if (result.getAcquire() == 0) {
+                        throw new TaskNotFoundException("Task not found with task ID: " + id);
+                    }
+
+                    if (cacheManager.getCache("tasks") != null) {
+                        Objects.requireNonNull(cacheManager.getCache("tasks")).evict(id);
+                    }
+
+                    TaskEntity updatedTask = taskDbService.getTaskByJiraId(id);
+                    return taskMapper.toTaskDto(updatedTask);
+                }, threadConfig)
+                .thenApply(updatedTaskDto -> {
+                    if (messagingTemplate != null) {
+                        TaskUpdateEventDto event = TaskUpdateEventDto.builder()
+                                .taskId(id)
+                                .updatedBy(updateTaskRequest.getEmailId())
+                                .fields(updates) // 👈 Ensure 'updates' map is passed directly
+                                .type("FIELD_UPDATE")
+                                .build();
+
+                        messagingTemplate.convertAndSend("/topic/tasks/" + id, event);
+                    }
+                    return updatedTaskDto;
+                });
     }
 
     public List<TaskDto> getTasksByProjectAndStatus(TaskStatus status, Pageable pageable, Integer projectId) {

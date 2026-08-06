@@ -15,6 +15,7 @@ import org.springframework.cache.annotation.CachePut;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,6 +44,7 @@ public class TaskDbService {
         return tasksRepository.saveAndFlush(taskEntity);
     }
 
+    @Transactional
     public int updatePartialTask(Integer taskId, String title, String description, TaskType taskType, TaskStatus taskStatus, Priority priority,
                                  UserEntity updatedBy, LocalDateTime updatedAt) {
         return tasksRepository.updatePartialTask(taskId, title, description, taskType, taskStatus, priority, updatedBy, updatedAt);
