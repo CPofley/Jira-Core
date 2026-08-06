@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 // security pwd: b4ef1b4f-810b-4999-9617-1c88be3953eb
 @RestController
@@ -56,20 +57,9 @@ public class TasksController {
     }
 
     @PatchMapping("/update/{id}")
-    public ResponseEntity<?> updateTaskPartially(
-            @PathVariable Integer id,
-            @RequestBody Map<String, Object> updates) {
-
-        // 1. Pass the task ID and the partial fields map to your service layer
-        ResponseEntity<TaskDto> response = tasksService.updateTaskFields(id, updates);
-
-
-        if (response.getStatusCode().is2xxSuccessful()) {
-            // Return the updated task body object directly so UI gets the fresh state payload
-            return ResponseEntity.ok(response.getBody());
-        } else {
-            return ResponseEntity.status(response.getStatusCode()).body(Map.of("error", "Failed to update task"));
-        }
+    public CompletableFuture<ResponseEntity<?>> updateTaskPartially(@Valid @RequestBody UpdateTaskRequest updateTaskRequest) {
+        return tasksService.updateTaskFields(updateTaskRequest)
+                .thenApply(ResponseEntity::ok);
     }
 
 

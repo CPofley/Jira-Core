@@ -11,16 +11,20 @@ import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.mapper.UserMapper;
 import com.api.jira.apis.user.service.UserDbService;
 import jakarta.transaction.Transactional;
-import org.springframework.cache.Cache;
+import org.springframework.beans.BeanUtils;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Transactional
 @Service
@@ -32,10 +36,11 @@ public class TasksService {
     private final UserDbService userDbService;
     private final UserMapper userMapper;
     private final ProjectDbService projectDbService;
-
     private final CacheManager cacheManager;
+    private final Executor threadConfig;
+    private SimpMessagingTemplate messagingTemplate; // Optional until WebSocket config is added in Step 4
 
-    public TasksService(TaskMapper taskMapper, TaskDbService taskDbService, CommentMapper commentMapper, UserDbService userDbService, UserMapper userMapper, ProjectDbService projectDbService, CacheManager cacheManager) {
+    public TasksService(TaskMapper taskMapper, TaskDbService taskDbService, CommentMapper commentMapper, UserDbService userDbService, UserMapper userMapper, ProjectDbService projectDbService, CacheManager cacheManager, Executor threadConfig) {
         this.taskMapper = taskMapper;
         this.taskDbService = taskDbService;
         this.commentMapper = commentMapper;
@@ -43,6 +48,7 @@ public class TasksService {
         this.userMapper = userMapper;
         this.projectDbService = projectDbService;
         this.cacheManager = cacheManager;
+        this.threadConfig = threadConfig;
     }
 
     public Integer createTask(CreateTaskRequest createTaskRequest) {
@@ -96,51 +102,52 @@ public class TasksService {
     }
 
     @Transactional
-    public ResponseEntity<TaskDto> updateTaskFields(Integer id, Map<String, Object> updates) {
-        TaskEntity existingTask = taskDbService.getTaskByJiraId(id);
-        if (existingTask == null) {
-            throw new RuntimeException("Task not found with id: " + id);
-        }
+    public CompletableFuture<TaskDto> updateTaskFields(UpdateTaskRequest updateTaskRequest) {
+        Map<String,Object> updates = updateTaskRequest.getFields();
+        Integer id = updateTaskRequest.getTaskId();
+        return CompletableFuture.supplyAsync(()->{
+            AtomicInteger result = new AtomicInteger();
+            Optional<UserEntity> updatedBy = userDbService.findByEmail(updateTaskRequest.getEmailId());
+           updates.forEach((key,value)->{
+               switch (key) {
+                   case "title" -> {
 
-        Integer parentJiraId = null;
-        if (existingTask.getParentTask() != null) {
-            // Assuming your Parent Task entity maps its jira tracking ID to a field like getJiraId() or getId()
-            parentJiraId = existingTask.getParentTask().getId();
-        }
+                       result.set(taskDbService.updatePartialTask(id, (String) value, null, null, null, null, updatedBy.orElse(null), LocalDateTime.now()));
+                   }
+                   case "description" -> result.set(taskDbService.updatePartialTask(id, null, (String) value, null, null, null,updatedBy.orElse(null), LocalDateTime.now()));
+                   case "taskType" -> {
+                       TaskType taskType = value != null ? TaskType.valueOf(value.toString().toUpperCase()) : null;
+                      result.set(taskDbService.updatePartialTask(id, null, null, taskType, null, null,updatedBy.orElse(null), LocalDateTime.now()));
+                   }
+                   case "taskStatus" -> {
+                       TaskStatus taskStatus = value != null ? TaskStatus.valueOf(value.toString().toUpperCase()) : null;
+                       result.set(taskDbService.updatePartialTask(id, null, null, null, taskStatus, null,updatedBy.orElse(null), LocalDateTime.now()));
+                   }
+                   case "priority" -> {
+                       Priority priority = value != null ? Priority.valueOf(value.toString().toUpperCase()) : null;
+                       result.set(taskDbService.updatePartialTask(id, null, null, null, null, priority,updatedBy.orElse(null), LocalDateTime.now()));
+                   }
+                   default -> throw new IllegalArgumentException("Invalid field: " + key);
+               }
 
-        updates.forEach((key, value) -> {
-            switch (key) {
-                case "title" -> existingTask.setTitle((String) value);
-                case "description" -> existingTask.setDescription((String) value);
-                case "assignee" ->{
-//                    Optional<UserEntity> assignee = userDbService.findByUserName((String) value);
-//                    existingTask.setAssignee(assignee.orElse(null));
-                    existingTask.setAssignee((UserEntity) value);
-                }
-                case "reporter" -> {
-//                    Optional<UserEntity> reporter = userDbService.findByUserName((String) value);
-//                    existingTask.setReporter(reporter.orElse(null));
-                    existingTask.setReporter((UserEntity) value);
-                }
-                case "taskStatus" -> existingTask.setTaskStatus(Enum.valueOf(TaskStatus.class, (String) value));
-                case "priority" -> existingTask.setPriority(
-                        value != null ? Priority.valueOf(value.toString().toUpperCase()) : null
-                );
-                case "taskType" -> existingTask.setTaskType(Enum.valueOf(TaskType.class, (String) value));
-                default -> throw new IllegalArgumentException("Invalid field: " + key);
+           });
+           if(result.getAcquire()==0){
+               throw new TaskNotFoundException("Task not found with task ID: " + id);
+           }
+           TaskEntity updatedTask = taskDbService.getTaskByJiraId(id);
+           if (cacheManager.getCache("tasks") != null) {
+               Objects.requireNonNull(cacheManager.getCache("tasks")).evict(id);
+           }
+           return taskMapper.toTaskDto(updatedTask);
+        }, threadConfig)
+                .thenApply(updatedTask ->{
+            TaskUpdateEventDto event = new TaskUpdateEventDto();
+            BeanUtils.copyProperties(updatedTask, event);
+            if (messagingTemplate != null) {
+                messagingTemplate.convertAndSend("/topic/tasks/" + id, event);
             }
+            return updatedTask;
         });
-
-        // 🟢 1. Flush changes directly to the database first
-        TaskEntity savedTask = taskDbService.flushChanges(existingTask);
-
-        // 🟢 Clear ALL entries in "tasks" cache to guarantee no stale child collections remain
-        Cache tasksCache = cacheManager.getCache("tasks");
-        if (tasksCache != null) {
-            tasksCache.clear(); // Flushes entire task cache region
-        }
-        // 🟢 3. Map savedTask (freshly flushed instance) instead of existingTask
-        return ResponseEntity.ok(taskMapper.toTaskDto(savedTask));
     }
 
     public List<TaskDto> getTasksByProjectAndStatus(TaskStatus status, Pageable pageable, Integer projectId) {

@@ -9,12 +9,14 @@ import com.api.jira.apis.task.model.TaskDto;
 import com.api.jira.apis.task.model.TaskStatus;
 import com.api.jira.apis.task.model.TaskType;
 import com.api.jira.apis.task.repository.TasksRepository;
+import com.api.jira.apis.user.entity.UserEntity;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,9 +43,9 @@ public class TaskDbService {
         return tasksRepository.saveAndFlush(taskEntity);
     }
 
-    // 🟢 REMOVED @CacheEvict to fix the "Null key returned for cache operation" SpEL error
-    public TaskEntity flushChanges(TaskEntity taskEntity){
-        return tasksRepository.saveAndFlush(taskEntity);
+    public int updatePartialTask(Integer taskId, String title, String description, TaskType taskType, TaskStatus taskStatus, Priority priority,
+                                 UserEntity updatedBy, LocalDateTime updatedAt) {
+        return tasksRepository.updatePartialTask(taskId, title, description, taskType, taskStatus, priority, updatedBy, updatedAt);
     }
 
     public TaskEntity getTaskByJiraId(Integer jiraId) {
@@ -94,6 +96,4 @@ public class TaskDbService {
     public Optional<ProjectEntity> getProjectByTask(Integer taskId){
         return tasksRepository.getProjectByTaskId(taskId);
     }
-
-
 }

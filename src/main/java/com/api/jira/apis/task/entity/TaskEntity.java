@@ -78,6 +78,13 @@ public class TaskEntity {
     @JoinColumn(name = "project_id", nullable = false) // Links this task to a specific project
     private ProjectEntity project;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by_user")
+    private UserEntity updatedBy;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     // Helper methods to keep both sides of the relationship in sync
     public void addComment(CommentEntity comment) {
         comments.add(comment);
