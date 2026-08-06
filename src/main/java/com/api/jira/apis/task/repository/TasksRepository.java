@@ -5,6 +5,7 @@ import com.api.jira.apis.task.entity.TaskEntity;
 import com.api.jira.apis.task.model.Priority;
 import com.api.jira.apis.task.model.TaskStatus;
 import com.api.jira.apis.task.model.TaskType;
+import com.api.jira.apis.user.entity.UserEntity;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +17,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Repository
@@ -63,18 +65,22 @@ public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
     @Query("SELECT t.project FROM TaskEntity t where t.id= :jiraId")
     Optional<ProjectEntity> getProjectByTaskId(@Param("jiraId") Integer jiraId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE TaskEntity t SET " +
-            " t.title = COALESCE(:title, t.title)," +
-            " t.description = COALESCE(:description, t.description)," +
-            " t.taskType = COALESCE(:taskType, t.taskType)," +
-            " t.taskStatus = COALESCE(:taskStatus, t.taskStatus)," +
-            " t.priority = COALESCE(:priority, t.priority)," +
-            " WHERE t.id = :jiraId")
-    void updateTask(@Param("jiraId") Integer jiraId,
-                    @Param("title") String title,
-                    @Param("description") String description,
-                    @Param("taskType") TaskType taskType,
-                    @Param("taskStatus") TaskStatus taskStatus,
-                    @Param("priority") Priority priority);
+            "t.title = COALESCE(:title, t.title), " +
+            "t.description = COALESCE(:description, t.description), " +
+            "t.taskType = COALESCE(:taskType, t.taskType), " +
+            "t.taskStatus = COALESCE(:taskStatus, t.taskStatus), " +
+            "t.priority = COALESCE(:priority, t.priority), " +
+            "t.updatedBy = CASE WHEN :updatedBy IS NOT NULL THEN :updatedBy ELSE t.updatedBy END, " +
+            "t.updatedAt = :updatedAt " +
+            "WHERE t.id = :id")
+    int updatePartialTask(@Param("jiraId") Integer jiraId,
+                          @Param("title") String title,
+                          @Param("description") String description,
+                          @Param("taskType") TaskType taskType,
+                          @Param("taskStatus") TaskStatus taskStatus,
+                          @Param("priority") Priority priority,
+                          @Param("updatedBy") UserEntity updatedBy,
+                          @Param("updatedAt") LocalDateTime updatedAt);
 }

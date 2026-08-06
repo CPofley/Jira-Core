@@ -5,11 +5,10 @@ import com.api.jira.apis.user.entity.UserEntity;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Set;
 
 @Data
-public class TaskDto {
+public class TaskUpdateEventDto {
     private Integer id;
     private String title;
     private String description;

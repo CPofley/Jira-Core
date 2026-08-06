@@ -74,4 +74,6 @@ public interface TaskMapper {
         // Returns the user's name to the frontend UI
         return user.getUsername() != null ? user.getUsername() : user.getEmail();
     }
+
+    TaskUpdateEventDto toTaskUpdateEventDto(TaskEntity taskEntity);
 }
