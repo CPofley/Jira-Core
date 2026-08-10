@@ -57,9 +57,8 @@ public class TasksController {
     }
 
     @PatchMapping("/update/{id}")
-    public CompletableFuture<ResponseEntity<?>> updateTaskPartially(@Valid @RequestBody UpdateTaskRequest updateTaskRequest) {
-        return tasksService.updateTaskFields(updateTaskRequest)
-                .thenApply(ResponseEntity::ok);
+    public ResponseEntity<?> updateTaskPartially(@Valid @RequestBody UpdateTaskRequest updateTaskRequest) {
+        return ResponseEntity.ok(tasksService.updateTaskFields(updateTaskRequest));
     }
 
 

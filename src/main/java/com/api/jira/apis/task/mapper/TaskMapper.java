@@ -27,6 +27,7 @@ public interface TaskMapper {
     TaskEntity toTaskEntity(CreateTaskRequest createTaskRequest);
 
     // Main mapping method
+    @Mapping(target = "updatedBy", source = "updatedBy.username")
     TaskDto toTaskDto(TaskEntity taskEntity);
 
     List<TaskDto> toTaskDtoList(List<TaskEntity> taskEntities);
@@ -71,9 +72,20 @@ public interface TaskMapper {
         if (user == null) {
             return null;
         }
-        // Returns the user's name to the frontend UI
-        return user.getUsername() != null ? user.getUsername() : user.getEmail();
+        // 1. Get primary user identifier (username or email)
+        String identifier = user.getUsername() != null ? user.getUsername() : user.getEmail();
+
+        // 2. Fetch profile picture URL
+        String profileImageUrl = user.getPictureUrl();
+
+        // 3. Append picture URL if available, otherwise return just the identifier
+        if (profileImageUrl != null && !profileImageUrl.isBlank()) {
+            return identifier + "|" + profileImageUrl;
+        }
+
+        return identifier;
     }
 
+    @Mapping(target = "updatedBy", source = "updatedBy.username")
     TaskUpdateEventDto toTaskUpdateEventDto(TaskEntity taskEntity);
 }

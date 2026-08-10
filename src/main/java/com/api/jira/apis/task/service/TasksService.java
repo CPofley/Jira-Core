@@ -10,8 +10,11 @@ import com.api.jira.apis.task.model.*;
 import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.mapper.UserMapper;
 import com.api.jira.apis.user.service.UserDbService;
-import jakarta.transaction.Transactional;
+import org.springframework.cache.Cache;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -19,7 +22,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
-
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -38,9 +40,11 @@ public class TasksService {
     private final ProjectDbService projectDbService;
     private final CacheManager cacheManager;
     private final Executor threadConfig;
-    private SimpMessagingTemplate messagingTemplate; // Optional until WebSocket config is added in Step 4
+    private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public TasksService(TaskMapper taskMapper, TaskDbService taskDbService, CommentMapper commentMapper, UserDbService userDbService, UserMapper userMapper, ProjectDbService projectDbService, CacheManager cacheManager, Executor threadConfig) {
+    public TasksService(TaskMapper taskMapper, TaskDbService taskDbService, CommentMapper commentMapper, UserDbService userDbService, UserMapper userMapper, ProjectDbService projectDbService, CacheManager cacheManager,
+                        @Qualifier("customExecutor") Executor threadConfig, SimpMessagingTemplate messagingTemplate, ApplicationEventPublisher eventPublisher) {
         this.taskMapper = taskMapper;
         this.taskDbService = taskDbService;
         this.commentMapper = commentMapper;
@@ -49,6 +53,8 @@ public class TasksService {
         this.projectDbService = projectDbService;
         this.cacheManager = cacheManager;
         this.threadConfig = threadConfig;
+        this.messagingTemplate = messagingTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     public Integer createTask(CreateTaskRequest createTaskRequest) {
@@ -102,52 +108,58 @@ public class TasksService {
     }
 
     @Transactional
-    public CompletableFuture<TaskDto> updateTaskFields(UpdateTaskRequest updateTaskRequest) {
-        Map<String,Object> updates = updateTaskRequest.getFields();
+    public TaskDto updateTaskFields(UpdateTaskRequest updateTaskRequest) {
+        Map<String, Object> updates = updateTaskRequest.getFields();
         Integer id = updateTaskRequest.getTaskId();
-        return CompletableFuture.supplyAsync(()->{
-            AtomicInteger result = new AtomicInteger();
-            Optional<UserEntity> updatedBy = userDbService.findByEmail(updateTaskRequest.getEmailId());
-           updates.forEach((key,value)->{
-               switch (key) {
-                   case "title" -> {
+        // 1. Fetch managed entity once
+        TaskEntity task = taskDbService.getTaskByJiraId(id);
+        if(task == null) {
+            throw new TaskNotFoundException("Task not found with task ID: " + id);
+        }
 
-                       result.set(taskDbService.updatePartialTask(id, (String) value, null, null, null, null, updatedBy.orElse(null), LocalDateTime.now()));
-                   }
-                   case "description" -> result.set(taskDbService.updatePartialTask(id, null, (String) value, null, null, null,updatedBy.orElse(null), LocalDateTime.now()));
-                   case "taskType" -> {
-                       TaskType taskType = value != null ? TaskType.valueOf(value.toString().toUpperCase()) : null;
-                      result.set(taskDbService.updatePartialTask(id, null, null, taskType, null, null,updatedBy.orElse(null), LocalDateTime.now()));
-                   }
-                   case "taskStatus" -> {
-                       TaskStatus taskStatus = value != null ? TaskStatus.valueOf(value.toString().toUpperCase()) : null;
-                       result.set(taskDbService.updatePartialTask(id, null, null, null, taskStatus, null,updatedBy.orElse(null), LocalDateTime.now()));
-                   }
-                   case "priority" -> {
-                       Priority priority = value != null ? Priority.valueOf(value.toString().toUpperCase()) : null;
-                       result.set(taskDbService.updatePartialTask(id, null, null, null, null, priority,updatedBy.orElse(null), LocalDateTime.now()));
-                   }
-                   default -> throw new IllegalArgumentException("Invalid field: " + key);
-               }
+        UserEntity updatedBy = userDbService.findByEmail(updateTaskRequest.getEmailId())
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + updateTaskRequest.getEmailId()));
 
-           });
-           if(result.getAcquire()==0){
-               throw new TaskNotFoundException("Task not found with task ID: " + id);
-           }
-           TaskEntity updatedTask = taskDbService.getTaskByJiraId(id);
-           if (cacheManager.getCache("tasks") != null) {
-               Objects.requireNonNull(cacheManager.getCache("tasks")).evict(id);
-           }
-           return taskMapper.toTaskDto(updatedTask);
-        }, threadConfig)
-                .thenApply(updatedTask ->{
-            TaskUpdateEventDto event = new TaskUpdateEventDto();
-            BeanUtils.copyProperties(updatedTask, event);
-            if (messagingTemplate != null) {
-                messagingTemplate.convertAndSend("/topic/tasks/" + id, event);
-            }
-            return updatedTask;
-        });
+        // 2. Conditionally update fields if key exists in payload
+        if (updates.containsKey("title")) {
+            task.setTitle((String) updates.get("title"));
+        }
+        if (updates.containsKey("description")) {
+            task.setDescription((String) updates.get("description"));
+        }
+        if (updates.containsKey("taskType") && updates.get("taskType") != null) {
+            task.setTaskType(TaskType.valueOf((String) updates.get("taskType")));
+        }
+        if (updates.containsKey("taskStatus") && updates.get("taskStatus") != null) {
+            task.setTaskStatus(TaskStatus.valueOf((String) updates.get("taskStatus")));
+        }
+        if (updates.containsKey("priority") && updates.get("priority") != null) {
+            task.setPriority(Priority.valueOf((String) updates.get("priority")));
+        }
+        if (updates.containsKey("assignee")) {
+            String email = (String) updates.get("assignee");
+            task.setAssignee(email != null ? userDbService.findByEmail(email).orElse(null) : null);
+        }
+        if (updates.containsKey("reporter")) {
+            String email = (String) updates.get("reporter");
+            task.setReporter(email != null ? userDbService.findByEmail(email).orElse(null) : null);
+        }
+
+        task.setUpdatedBy(updatedBy);
+        task.setUpdatedAt(LocalDateTime.now());
+        TaskDto updatedtaskDto = taskDbService.saveTask(task);
+        Cache tasksCache = cacheManager.getCache("tasks");
+        if (tasksCache != null) {
+            tasksCache.evict(id);
+        }
+        TaskUpdateEventDto eventDto = TaskUpdateEventDto.builder().
+                taskId(id)
+                .updatedBy(updateTaskRequest.getEmailId())
+                .fields(updates)
+                .type("FIELD_UPDATE")
+                .build();
+        eventPublisher.publishEvent(eventDto);
+        return updatedtaskDto;
     }
 
     public List<TaskDto> getTasksByProjectAndStatus(TaskStatus status, Pageable pageable, Integer projectId) {

@@ -15,6 +15,7 @@ import org.springframework.cache.annotation.CachePut;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,7 +36,7 @@ public class TaskDbService {
     @CachePut(value = "tasks", key = "#taskEntity.id", condition = "#taskEntity.id != null")
     public TaskDto saveTask(TaskEntity taskEntity) {
         TaskEntity savedTask = tasksRepository.save(taskEntity);
-        return taskMapper.toTaskDto(taskEntity);
+        return taskMapper.toTaskDto(savedTask);
     }
 
     @CacheEvict(value = "tasks", key = "#parentId", condition = "#parentId != null")
@@ -44,8 +45,9 @@ public class TaskDbService {
     }
 
     public int updatePartialTask(Integer taskId, String title, String description, TaskType taskType, TaskStatus taskStatus, Priority priority,
-                                 UserEntity updatedBy, LocalDateTime updatedAt) {
-        return tasksRepository.updatePartialTask(taskId, title, description, taskType, taskStatus, priority, updatedBy, updatedAt);
+                                 UserEntity updatedBy,UserEntity assignee, UserEntity reporter ,LocalDateTime updatedAt) {
+        return tasksRepository.updatePartialTask(taskId, title, description, taskType, taskStatus, priority, updatedBy,
+                updatedAt,assignee,reporter);
     }
 
     public TaskEntity getTaskByJiraId(Integer jiraId) {

@@ -23,7 +23,16 @@ import java.util.Optional;
 @Repository
 public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
 
-    @EntityGraph(attributePaths = {"comments","subIssues"})
+    // adding all lazy attributes since accessing any outside transaction was causing LazyInitializingException
+    @EntityGraph(attributePaths = {
+            "comments",
+            "subIssues",
+            "parentTask",
+            "reporter",
+            "assignee",
+            "project",
+            "updatedBy"
+    })
     @Query("SELECT distinct t FROM TaskEntity t WHERE t.id = :jiraId")
     TaskEntity findByJiraId(@Param("jiraId") Integer jiraId);
 
@@ -72,9 +81,11 @@ public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
             "t.taskType = COALESCE(:taskType, t.taskType), " +
             "t.taskStatus = COALESCE(:taskStatus, t.taskStatus), " +
             "t.priority = COALESCE(:priority, t.priority), " +
-            "t.updatedBy = CASE WHEN :updatedBy IS NOT NULL THEN :updatedBy ELSE t.updatedBy END, " +
-            "t.updatedAt = :updatedAt " +
-            "WHERE t.id = :id")
+            "t.updatedBy = :updatedBy, " +
+            "t.updatedAt = :updatedAt, " +
+            "t.assignee = CASE WHEN :assigneeProvided = true THEN :assignee ELSE t.assignee END, " +
+            "t.reporter = CASE WHEN :reporterProvided = true THEN :reporter ELSE t.reporter END " +
+            "WHERE t.id = :jiraId")
     int updatePartialTask(@Param("jiraId") Integer jiraId,
                           @Param("title") String title,
                           @Param("description") String description,
@@ -82,5 +93,7 @@ public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
                           @Param("taskStatus") TaskStatus taskStatus,
                           @Param("priority") Priority priority,
                           @Param("updatedBy") UserEntity updatedBy,
-                          @Param("updatedAt") LocalDateTime updatedAt);
+                          @Param("updatedAt") LocalDateTime updatedAt,
+                          @Param("assignee") UserEntity assignee,
+                          @Param("reporter") UserEntity reporter);
 }
