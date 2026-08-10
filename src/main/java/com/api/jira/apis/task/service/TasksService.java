@@ -10,6 +10,8 @@ import com.api.jira.apis.task.model.*;
 import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.mapper.UserMapper;
 import com.api.jira.apis.user.service.UserDbService;
+import org.springframework.cache.Cache;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -39,9 +41,10 @@ public class TasksService {
     private final CacheManager cacheManager;
     private final Executor threadConfig;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     public TasksService(TaskMapper taskMapper, TaskDbService taskDbService, CommentMapper commentMapper, UserDbService userDbService, UserMapper userMapper, ProjectDbService projectDbService, CacheManager cacheManager,
-                        @Qualifier("customExecutor") Executor threadConfig, SimpMessagingTemplate messagingTemplate) {
+                        @Qualifier("customExecutor") Executor threadConfig, SimpMessagingTemplate messagingTemplate, ApplicationEventPublisher eventPublisher) {
         this.taskMapper = taskMapper;
         this.taskDbService = taskDbService;
         this.commentMapper = commentMapper;
@@ -51,6 +54,7 @@ public class TasksService {
         this.cacheManager = cacheManager;
         this.threadConfig = threadConfig;
         this.messagingTemplate = messagingTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     public Integer createTask(CreateTaskRequest createTaskRequest) {
@@ -104,59 +108,58 @@ public class TasksService {
     }
 
     @Transactional
-    public CompletableFuture<TaskDto> updateTaskFields(UpdateTaskRequest updateTaskRequest) {
+    public TaskDto updateTaskFields(UpdateTaskRequest updateTaskRequest) {
         Map<String, Object> updates = updateTaskRequest.getFields();
         Integer id = updateTaskRequest.getTaskId();
-        return CompletableFuture.supplyAsync(() -> {
-                    AtomicInteger result = new AtomicInteger();
-                    Optional<UserEntity> updatedBy = userDbService.findByEmail(updateTaskRequest.getEmailId());
+        // 1. Fetch managed entity once
+        TaskEntity task = taskDbService.getTaskByJiraId(id);
+        if(task == null) {
+            throw new TaskNotFoundException("Task not found with task ID: " + id);
+        }
 
-                    updates.forEach((key, value) -> {
-                        switch (key) {
-                            case "title" ->
-                                    result.set(taskDbService.updatePartialTask(id, (String) value, null, null, null, null, updatedBy.orElse(null), LocalDateTime.now()));
-                            case "description" ->
-                                    result.set(taskDbService.updatePartialTask(id, null, (String) value, null, null, null, updatedBy.orElse(null), LocalDateTime.now()));
-                            case "taskType" -> {
-                                TaskType taskType = value != null ? TaskType.valueOf(value.toString().toUpperCase()) : null;
-                                result.set(taskDbService.updatePartialTask(id, null, null, taskType, null, null, updatedBy.orElse(null), LocalDateTime.now()));
-                            }
-                            case "taskStatus" -> {
-                                TaskStatus taskStatus = value != null ? TaskStatus.valueOf(value.toString().toUpperCase()) : null;
-                                result.set(taskDbService.updatePartialTask(id, null, null, null, taskStatus, null, updatedBy.orElse(null), LocalDateTime.now()));
-                            }
-                            case "priority" -> {
-                                Priority priority = value != null ? Priority.valueOf(value.toString().toUpperCase()) : null;
-                                result.set(taskDbService.updatePartialTask(id, null, null, null, null, priority, updatedBy.orElse(null), LocalDateTime.now()));
-                            }
-                            default -> throw new IllegalArgumentException("Invalid field: " + key);
-                        }
-                    });
+        UserEntity updatedBy = userDbService.findByEmail(updateTaskRequest.getEmailId())
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + updateTaskRequest.getEmailId()));
 
-                    if (result.getAcquire() == 0) {
-                        throw new TaskNotFoundException("Task not found with task ID: " + id);
-                    }
+        // 2. Conditionally update fields if key exists in payload
+        if (updates.containsKey("title")) {
+            task.setTitle((String) updates.get("title"));
+        }
+        if (updates.containsKey("description")) {
+            task.setDescription((String) updates.get("description"));
+        }
+        if (updates.containsKey("taskType") && updates.get("taskType") != null) {
+            task.setTaskType(TaskType.valueOf((String) updates.get("taskType")));
+        }
+        if (updates.containsKey("taskStatus") && updates.get("taskStatus") != null) {
+            task.setTaskStatus(TaskStatus.valueOf((String) updates.get("taskStatus")));
+        }
+        if (updates.containsKey("priority") && updates.get("priority") != null) {
+            task.setPriority(Priority.valueOf((String) updates.get("priority")));
+        }
+        if (updates.containsKey("assignee")) {
+            String email = (String) updates.get("assignee");
+            task.setAssignee(email != null ? userDbService.findByEmail(email).orElse(null) : null);
+        }
+        if (updates.containsKey("reporter")) {
+            String email = (String) updates.get("reporter");
+            task.setReporter(email != null ? userDbService.findByEmail(email).orElse(null) : null);
+        }
 
-                    if (cacheManager.getCache("tasks") != null) {
-                        Objects.requireNonNull(cacheManager.getCache("tasks")).evict(id);
-                    }
-
-                    TaskEntity updatedTask = taskDbService.getTaskByJiraId(id);
-                    return taskMapper.toTaskDto(updatedTask);
-                }, threadConfig)
-                .thenApply(updatedTaskDto -> {
-                    if (messagingTemplate != null) {
-                        TaskUpdateEventDto event = TaskUpdateEventDto.builder()
-                                .taskId(id)
-                                .updatedBy(updateTaskRequest.getEmailId())
-                                .fields(updates) // 👈 Ensure 'updates' map is passed directly
-                                .type("FIELD_UPDATE")
-                                .build();
-
-                        messagingTemplate.convertAndSend("/topic/tasks/" + id, event);
-                    }
-                    return updatedTaskDto;
-                });
+        task.setUpdatedBy(updatedBy);
+        task.setUpdatedAt(LocalDateTime.now());
+        TaskDto updatedtaskDto = taskDbService.saveTask(task);
+        Cache tasksCache = cacheManager.getCache("tasks");
+        if (tasksCache != null) {
+            tasksCache.evict(id);
+        }
+        TaskUpdateEventDto eventDto = TaskUpdateEventDto.builder().
+                taskId(id)
+                .updatedBy(updateTaskRequest.getEmailId())
+                .fields(updates)
+                .type("FIELD_UPDATE")
+                .build();
+        eventPublisher.publishEvent(eventDto);
+        return updatedtaskDto;
     }
 
     public List<TaskDto> getTasksByProjectAndStatus(TaskStatus status, Pageable pageable, Integer projectId) {

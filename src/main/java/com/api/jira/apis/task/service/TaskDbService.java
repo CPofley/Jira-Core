@@ -36,7 +36,7 @@ public class TaskDbService {
     @CachePut(value = "tasks", key = "#taskEntity.id", condition = "#taskEntity.id != null")
     public TaskDto saveTask(TaskEntity taskEntity) {
         TaskEntity savedTask = tasksRepository.save(taskEntity);
-        return taskMapper.toTaskDto(taskEntity);
+        return taskMapper.toTaskDto(savedTask);
     }
 
     @CacheEvict(value = "tasks", key = "#parentId", condition = "#parentId != null")
@@ -44,10 +44,10 @@ public class TaskDbService {
         return tasksRepository.saveAndFlush(taskEntity);
     }
 
-    @Transactional
     public int updatePartialTask(Integer taskId, String title, String description, TaskType taskType, TaskStatus taskStatus, Priority priority,
-                                 UserEntity updatedBy, LocalDateTime updatedAt) {
-        return tasksRepository.updatePartialTask(taskId, title, description, taskType, taskStatus, priority, updatedBy, updatedAt);
+                                 UserEntity updatedBy,UserEntity assignee, UserEntity reporter ,LocalDateTime updatedAt) {
+        return tasksRepository.updatePartialTask(taskId, title, description, taskType, taskStatus, priority, updatedBy,
+                updatedAt,assignee,reporter);
     }
 
     public TaskEntity getTaskByJiraId(Integer jiraId) {
