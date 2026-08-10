@@ -82,7 +82,9 @@ public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
             "t.taskStatus = COALESCE(:taskStatus, t.taskStatus), " +
             "t.priority = COALESCE(:priority, t.priority), " +
             "t.updatedBy = :updatedBy, " +
-            "t.updatedAt = :updatedAt " +
+            "t.updatedAt = :updatedAt, " +
+            "t.assignee = CASE WHEN :assigneeProvided = true THEN :assignee ELSE t.assignee END, " +
+            "t.reporter = CASE WHEN :reporterProvided = true THEN :reporter ELSE t.reporter END " +
             "WHERE t.id = :jiraId")
     int updatePartialTask(@Param("jiraId") Integer jiraId,
                           @Param("title") String title,
@@ -91,5 +93,7 @@ public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
                           @Param("taskStatus") TaskStatus taskStatus,
                           @Param("priority") Priority priority,
                           @Param("updatedBy") UserEntity updatedBy,
-                          @Param("updatedAt") LocalDateTime updatedAt);
+                          @Param("updatedAt") LocalDateTime updatedAt,
+                          @Param("assignee") UserEntity assignee,
+                          @Param("reporter") UserEntity reporter);
 }
