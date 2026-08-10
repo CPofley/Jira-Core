@@ -1,7 +1,9 @@
 package com.api.jira.apis.task.service;
 
 import com.api.jira.apis.comment.mapper.CommentMapper;
+import com.api.jira.apis.exceptions.ExceptionTypes.EmailFormatException;
 import com.api.jira.apis.exceptions.ExceptionTypes.TaskNotFoundException;
+import com.api.jira.apis.exceptions.ExceptionTypes.UserNotFoundException;
 import com.api.jira.apis.project.entity.ProjectEntity;
 import com.api.jira.apis.project.service.ProjectDbService;
 import com.api.jira.apis.task.entity.TaskEntity;
@@ -10,10 +12,10 @@ import com.api.jira.apis.task.model.*;
 import com.api.jira.apis.user.entity.UserEntity;
 import com.api.jira.apis.user.mapper.UserMapper;
 import com.api.jira.apis.user.service.UserDbService;
+import java.util.regex.Pattern;
 import org.springframework.cache.Cache;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
@@ -24,9 +26,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Transactional
 @Service
@@ -56,6 +56,10 @@ public class TasksService {
         this.messagingTemplate = messagingTemplate;
         this.eventPublisher = eventPublisher;
     }
+
+    private static final Pattern EMAIL_PATTERN = Pattern.compile(
+            "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}$"
+    );
 
     public Integer createTask(CreateTaskRequest createTaskRequest) {
         TaskEntity taskEntity = taskMapper.toTaskEntity(createTaskRequest);
@@ -116,7 +120,9 @@ public class TasksService {
         if(task == null) {
             throw new TaskNotFoundException("Task not found with task ID: " + id);
         }
-
+        if(!isValidEmail(updateTaskRequest.getEmailId())){
+            throw new EmailFormatException("Incorrect email format: "+updateTaskRequest.getEmailId());
+        }
         UserEntity updatedBy = userDbService.findByEmail(updateTaskRequest.getEmailId())
                 .orElseThrow(() -> new RuntimeException("User not found with email: " + updateTaskRequest.getEmailId()));
 
@@ -141,8 +147,15 @@ public class TasksService {
             task.setAssignee(email != null ? userDbService.findByEmail(email).orElse(null) : null);
         }
         if (updates.containsKey("reporter")) {
+
             String email = (String) updates.get("reporter");
-            task.setReporter(email != null ? userDbService.findByEmail(email).orElse(null) : null);
+           if(!email.isEmpty() && !email.isBlank()&& !isValidEmail(email)){
+                throw new EmailFormatException("Incorrect reporter email format: "+email);
+           }
+            task.setReporter(userDbService.findByEmail(email).orElse(null));
+           if(task.getReporter()==null){
+               throw new UserNotFoundException("user not found with email: "+email);
+           }
         }
 
         task.setUpdatedBy(updatedBy);
@@ -291,5 +304,9 @@ public class TasksService {
 
         TaskEntity savedSubTask = taskDbService.flushChanges(newSubTask, parentTask.getId());
         return taskMapper.toTaskDto(savedSubTask);
+    }
+
+    private boolean isValidEmail(String email) {
+        return email != null && EMAIL_PATTERN.matcher(email).matches();
     }
 }

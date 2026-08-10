@@ -1,9 +1,7 @@
 package com.api.jira.apis.exceptions;
 
 
-import com.api.jira.apis.exceptions.ExceptionTypes.GenericExceptionResponse;
-import com.api.jira.apis.exceptions.ExceptionTypes.ProjectNotFoundException;
-import com.api.jira.apis.exceptions.ExceptionTypes.TaskNotFoundException;
+import com.api.jira.apis.exceptions.ExceptionTypes.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -82,5 +80,18 @@ public class GlobalExceptionHandler {
                 .body(GenericExceptionResponse.builder()
                         .error(errorMessage)
                         .build());
+    }
+
+    @ExceptionHandler(EmailFormatException.class)
+    public ResponseEntity<GenericExceptionResponse> handleEmailFormatException(EmailFormatException exception){
+        log.error(exception.getMessage());
+        return ResponseEntity.badRequest().body(GenericExceptionResponse.builder().error(exception.getMessage()).build());
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<GenericExceptionResponse> handleEmailFormatException(UserNotFoundException exception){
+        log.error(exception.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(GenericExceptionResponse.builder().error(exception.getMessage()).build());
     }
 }
