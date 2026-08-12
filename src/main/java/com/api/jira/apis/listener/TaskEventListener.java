@@ -18,7 +18,9 @@ public class TaskEventListener {
     @Async("customExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleTaskEvent(TaskUpdateEventDto event){
-        // Send the event to the WebSocket topic
-        messagingTemplate.convertAndSend("/topic/task-updates", event);
+        if (event != null && event.getTaskId() != null) {
+            // Send to /topic/tasks/{taskId} so it matches React's subscription path
+            messagingTemplate.convertAndSend("/topic/tasks/" + event.getTaskId(), event);
+        }
     }
 }
