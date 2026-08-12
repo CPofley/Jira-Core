@@ -3,6 +3,7 @@ package com.api.jira.apis.task.service;
 import com.api.jira.apis.comment.mapper.CommentMapper;
 import com.api.jira.apis.exceptions.ExceptionTypes.EmailFormatException;
 import com.api.jira.apis.exceptions.ExceptionTypes.TaskNotFoundException;
+import com.api.jira.apis.exceptions.ExceptionTypes.TaskTemplateException;
 import com.api.jira.apis.exceptions.ExceptionTypes.UserNotFoundException;
 import com.api.jira.apis.project.entity.ProjectEntity;
 import com.api.jira.apis.project.service.ProjectDbService;
@@ -124,27 +125,40 @@ public class TasksService {
             throw new EmailFormatException("Incorrect email format: "+updateTaskRequest.getEmailId());
         }
         UserEntity updatedBy = userDbService.findByEmail(updateTaskRequest.getEmailId())
-                .orElseThrow(() -> new RuntimeException("User not found with email: " + updateTaskRequest.getEmailId()));
+                .orElseThrow(() -> new UserNotFoundException("User not found with email: " + updateTaskRequest.getEmailId()));
 
         // 2. Conditionally update fields if key exists in payload
         if (updates.containsKey("title")) {
+            String taskTitle = (String) updates.get("title");
+            if(taskTitle.isBlank() || taskTitle.isEmpty()){
+                throw new RuntimeException("Task title cannot be null or empty: "+taskTitle);
+            }
             task.setTitle((String) updates.get("title"));
+
         }
         if (updates.containsKey("description")) {
             task.setDescription((String) updates.get("description"));
         }
-        if (updates.containsKey("taskType") && updates.get("taskType") != null) {
-            task.setTaskType(TaskType.valueOf((String) updates.get("taskType")));
+        TaskType taskType = parseEnum(updates, "taskType", TaskType.class, "Task type");
+        if (taskType != null) {
+            task.setTaskType(taskType);
         }
-        if (updates.containsKey("taskStatus") && updates.get("taskStatus") != null) {
-            task.setTaskStatus(TaskStatus.valueOf((String) updates.get("taskStatus")));
+        TaskStatus taskStatus = parseEnum(updates, "taskStatus", TaskStatus.class, "Task status");
+        if (taskStatus != null) {
+            task.setTaskStatus(taskStatus);
         }
-        if (updates.containsKey("priority") && updates.get("priority") != null) {
-            task.setPriority(Priority.valueOf((String) updates.get("priority")));
+        Priority priority = parseEnum(updates, "priority", Priority.class, "Priority");
+        if (priority != null) {
+            task.setPriority(priority);
         }
         if (updates.containsKey("assignee")) {
             String email = (String) updates.get("assignee");
-            task.setAssignee(email != null ? userDbService.findByEmail(email).orElse(null) : null);
+            if(!email.isBlank() || !email.isEmpty()){
+                if(!isValidEmail(email)){
+                    throw new EmailFormatException("Incorrect assignee email format: "+email);
+                }
+            }
+            task.setAssignee(userDbService.findByEmail(email).orElse(null));
         }
         if (updates.containsKey("reporter")) {
 
@@ -308,5 +322,24 @@ public class TasksService {
 
     private boolean isValidEmail(String email) {
         return email != null && EMAIL_PATTERN.matcher(email).matches();
+    }
+
+    private <E extends Enum<E>> E parseEnum(Map<String, Object> updates, String key, Class<E> enumClass, String fieldName) {
+        if (!updates.containsKey(key) || updates.get(key) == null) {
+           throw new TaskTemplateException("Invalid type: "+updates.get(key));
+        }
+
+        String rawInput = String.valueOf(updates.get(key)).trim();
+
+        if (rawInput.isBlank()) {
+            throw new TaskTemplateException(fieldName + " cannot be empty.");
+        }
+
+        try {
+            // Enums usually expect uppercase (e.g. "STORY", "IN_PROGRESS", "HIGH")
+            return Enum.valueOf(enumClass, rawInput.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new TaskTemplateException("Invalid " + fieldName.toLowerCase() + ": " + rawInput);
+        }
     }
 }
