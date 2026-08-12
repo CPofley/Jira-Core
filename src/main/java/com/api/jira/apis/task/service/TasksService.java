@@ -326,7 +326,7 @@ public class TasksService {
 
     private <E extends Enum<E>> E parseEnum(Map<String, Object> updates, String key, Class<E> enumClass, String fieldName) {
         if (!updates.containsKey(key) || updates.get(key) == null) {
-           throw new TaskTemplateException("Invalid type: "+updates.get(key));
+            return null;
         }
 
         String rawInput = String.valueOf(updates.get(key)).trim();
