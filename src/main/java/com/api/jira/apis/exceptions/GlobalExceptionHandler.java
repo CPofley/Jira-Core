@@ -23,6 +23,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<GenericExceptionResponse> handleAllExceptions(Exception ex) {
         log.error("An unexpected error occurred: {}", ex.getMessage(), ex);
+        if(ex.getMessage().contains("Task title cannot be null or empty")){
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(GenericExceptionResponse.builder().error(ex.getMessage()).build());
+        }
         // You can also return a custom response entity if needed
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(GenericExceptionResponse.builder().error(ex.getMessage()).build());
@@ -93,5 +97,11 @@ public class GlobalExceptionHandler {
         log.error(exception.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(GenericExceptionResponse.builder().error(exception.getMessage()).build());
+    }
+
+    @ExceptionHandler(TaskTemplateException.class)
+    public ResponseEntity<GenericExceptionResponse> handleTaskTemplateException(TaskTemplateException exception){
+        log.error(exception.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(GenericExceptionResponse.builder().error(exception.getMessage()).build());
     }
 }
