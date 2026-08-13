@@ -25,6 +25,9 @@ public class GithubService {
     @Value("${github.repo.name}")
     private String repoName;
 
+    @Value("${github.repo.ui.repo}")
+    private String uiRepoName;
+
     private final RestTemplate restTemplate;
 
     public GithubService(RestTemplate restTemplate) {
@@ -33,13 +36,25 @@ public class GithubService {
 
     @Async("customExecutor")
     public CompletableFuture<List<Map<String, Object>>> getPrForATaskId(Integer taskId) {
-        // Query both open and closed PRs for this task ID branch
-        String searchQuery = String.format("repo:%s/%s type:pr TASK-%d", repoOwner, repoName, taskId);
+        // Fetch PRs from Backend Repo and UI Repo concurrently
+        CompletableFuture<List<Map<String, Object>>> backendPrs = fetchPrsForRepo(repoName, taskId);
+        CompletableFuture<List<Map<String, Object>>> uiPrs = fetchPrsForRepo(uiRepoName, taskId);
+
+        return CompletableFuture.allOf(backendPrs, uiPrs)
+                .thenApply(v -> {
+                    List<Map<String, Object>> combinedList = new ArrayList<>();
+                    combinedList.addAll(backendPrs.join());
+                    combinedList.addAll(uiPrs.join());
+                    return combinedList;
+                });
+    }
+
+    private CompletableFuture<List<Map<String, Object>>> fetchPrsForRepo(String targetRepo, Integer taskId) {
+        String searchQuery = String.format("repo:%s/%s type:pr TASK-%d", repoOwner, targetRepo, taskId);
         String url = "https://api.github.com/search/issues?q=" + searchQuery;
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("Accept", "application/vnd.github+json");
-        // Disable aggressive caching on response
         headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
 
         HttpEntity<Void> entity = new HttpEntity<>(headers);
@@ -60,13 +75,12 @@ public class GithubService {
                         Map<String, Object> prMap = new HashMap<>();
                         prMap.put("id", item.get("id"));
                         prMap.put("number", item.get("number"));
-                        prMap.put("title", item.get("title"));
+                        prMap.put("title", targetRepo + ": " + item.get("title")); // Optional: Prefix title to distinguish UI vs Backend PRs
                         prMap.put("url", item.get("html_url"));
 
-                        String state = (String) item.get("state"); // "open" or "closed"
+                        String state = (String) item.get("state");
                         prMap.put("state", state);
 
-                        // Check pull_request.merged_at OR state_reason/pull_request object
                         boolean isMerged = false;
                         if (item.get("pull_request") instanceof Map<?, ?> prDetails) {
                             if (prDetails.get("merged_at") != null) {
@@ -74,11 +88,9 @@ public class GithubService {
                             }
                         }
 
-                        // Fallback check: If closed and state_reason is completed or pull_request has merged_at
                         if ("closed".equalsIgnoreCase(state) && (isMerged || item.get("pull_request") != null)) {
-                            // Fetch specific PR details directly to ensure accurate merged status if search API omitted it
                             Integer prNumber = (Integer) item.get("number");
-                            isMerged = fetchIsMergedDirectly(prNumber);
+                            isMerged = fetchIsMergedDirectly(targetRepo, prNumber);
                         }
 
                         prMap.put("isMerged", isMerged);
@@ -87,15 +99,15 @@ public class GithubService {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Error fetching PRs from GitHub: " + e.getMessage());
+            System.err.println("Error fetching PRs from GitHub repo " + targetRepo + ": " + e.getMessage());
         }
 
         return CompletableFuture.completedFuture(result);
     }
 
-    private boolean fetchIsMergedDirectly(Integer prNumber) {
+    private boolean fetchIsMergedDirectly(String targetRepo, Integer prNumber) {
         try {
-            String prUrl = String.format("https://api.github.com/repos/%s/%s/pulls/%d", repoOwner, repoName, prNumber);
+            String prUrl = String.format("https://api.github.com/repos/%s/%s/pulls/%d", repoOwner, targetRepo, prNumber);
             HttpHeaders headers = new HttpHeaders();
             headers.set("Accept", "application/vnd.github+json");
             HttpEntity<Void> entity = new HttpEntity<>(headers);
