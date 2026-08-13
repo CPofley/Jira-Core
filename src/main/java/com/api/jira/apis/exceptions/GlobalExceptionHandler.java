@@ -23,7 +23,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<GenericExceptionResponse> handleAllExceptions(Exception ex) {
         log.error("An unexpected error occurred: {}", ex.getMessage(), ex);
-        if(ex.getMessage().contains("Task title cannot be null or empty")){
+        if(ex.getMessage().contains("Task title cannot be null or empty") || ex.getMessage().contains("cannot be empty")){
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(GenericExceptionResponse.builder().error(ex.getMessage()).build());
         }

@@ -330,9 +330,11 @@ public class TasksService {
         }
 
         String rawInput = String.valueOf(updates.get(key)).trim();
-
-        if (rawInput.isBlank()) {
-            throw new TaskTemplateException(fieldName + " cannot be empty.");
+        if (rawInput.isBlank() && fieldName.toLowerCase().contains("task type")) {
+            throw new RuntimeException(fieldName + " cannot be empty.");
+        }
+        else if(rawInput.isBlank()){
+            throw new TaskTemplateException(fieldName +" cannot be empty");
         }
 
         try {
