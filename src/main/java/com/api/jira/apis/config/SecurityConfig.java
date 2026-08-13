@@ -44,6 +44,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/github/webhook", "/webhook").permitAll()
                         .requestMatchers("/api/tasks/**").authenticated()
                         .requestMatchers("/api/users/**").authenticated()
+                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/api/github/webhook", "/webhook").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
