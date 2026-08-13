@@ -326,13 +326,15 @@ public class TasksService {
 
     private <E extends Enum<E>> E parseEnum(Map<String, Object> updates, String key, Class<E> enumClass, String fieldName) {
         if (!updates.containsKey(key) || updates.get(key) == null) {
-           throw new TaskTemplateException("Invalid type: "+updates.get(key));
+            return null;
         }
 
         String rawInput = String.valueOf(updates.get(key)).trim();
-
-        if (rawInput.isBlank()) {
-            throw new TaskTemplateException(fieldName + " cannot be empty.");
+        if (rawInput.isBlank() && fieldName.toLowerCase().contains("task type")) {
+            throw new RuntimeException(fieldName + " cannot be empty.");
+        }
+        else if(rawInput.isBlank()){
+            throw new TaskTemplateException(fieldName +" cannot be empty");
         }
 
         try {
