@@ -18,6 +18,13 @@ import java.util.List;
 
 @Component
 public class DevAuthenticationFilter extends OncePerRequestFilter {
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        // Skip dev filter entirely for GitHub webhook requests
+        return "/api/github/webhook".equals(path) || "/webhook".equals(path);
+    }
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
