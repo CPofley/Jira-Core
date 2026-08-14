@@ -33,7 +33,7 @@ jobs:
       - name: Copy target file to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: 3.110.217.23.nip.io
+          host: 43.204.130.37.nip.io
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "target/*.war"  # or target/*.jar if using JAR
@@ -44,7 +44,7 @@ jobs:
       - name: Restart Application via PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 3.110.217.23.nip.io
+          host: 43.204.130.37.nip.io
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
