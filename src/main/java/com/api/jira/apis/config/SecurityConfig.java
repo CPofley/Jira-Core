@@ -78,7 +78,9 @@ public class SecurityConfig {
                 "http://192.168.1.6:5173",
                 "http://43.204.130.37",
                 "http://43.204.130.37:3000",
-                "http://43.204.130.37:8080"
+                "http://43.204.130.37:8080",
+                "http://43.204.130.37.nip.io", // <-- Add this
+                "http://43.204.130.37.nip.io:8080"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of(
