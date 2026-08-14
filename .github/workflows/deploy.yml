@@ -40,7 +40,7 @@ jobs:
           target: "/home/ec2-user/"
           strip_components: 1
 
-      # 5. Restart or Start Application via PM2 with GitHub Token explicitly bound
+      # 5. Restart or Start Application via PM2 with Injected Token Configuration
       - name: Restart Application via PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -48,9 +48,23 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            if pm2 describe jira-backend > /dev/null 2>&1; then
-              GITHUB_TOKEN="${{ secrets.GH_ACCESS_TOKEN }}" pm2 restart jira-backend --update-env
-            else
-              GITHUB_TOKEN="${{ secrets.GH_ACCESS_TOKEN }}" pm2 start java --name "jira-backend" -- -jar target/*.war
-            fi
+            # Delete old instance to prevent environment caching issues
+            pm2 delete jira-backend || true
+            
+            # Create the ecosystem file directly on the server with the token explicitly written out
+            cat <<EOF > ecosystem.config.js
+            module.exports = {
+              apps: [{
+                name: "jira-backend",
+                script: "java",
+                args: ["-jar", "target/Jira-0.0.1-SNAPSHOT.war"],
+                env: {
+                  GITHUB_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
+                }
+              }]
+            };
+            EOF
+            
+            # Start fresh with the new config
+            pm2 start ecosystem.config.js
             pm2 save
