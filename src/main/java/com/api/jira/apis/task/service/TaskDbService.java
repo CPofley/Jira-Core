@@ -32,10 +32,9 @@ public class TaskDbService {
         this.taskMapper = taskMapper;
     }
 
-    // 2. Pre-caches a newly created task so the details page redirection hits the cache instantly
-    @CachePut(value = "tasks", key = "#taskEntity.id", condition = "#taskEntity.id != null")
     public TaskDto saveTask(TaskEntity taskEntity) {
         TaskEntity savedTask = tasksRepository.save(taskEntity);
+        tasksRepository.flush();
         return taskMapper.toTaskDto(savedTask);
     }
 

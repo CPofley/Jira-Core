@@ -174,10 +174,14 @@ public class TasksService {
 
         task.setUpdatedBy(updatedBy);
         task.setUpdatedAt(LocalDateTime.now());
+        Integer parentTask = task.getParentTask()!=null? task.getParentTask().getId():null;
         TaskDto updatedtaskDto = taskDbService.saveTask(task);
         Cache tasksCache = cacheManager.getCache("tasks");
         if (tasksCache != null) {
             tasksCache.evict(id);
+            if(parentTask!=null){
+                tasksCache.evict(parentTask);
+            }
         }
         TaskUpdateEventDto eventDto = TaskUpdateEventDto.builder().
                 taskId(id)
