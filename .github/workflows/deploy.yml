@@ -40,7 +40,7 @@ jobs:
           target: "/home/ec2-user/"
           strip_components: 1
 
-      # 5. Restart or Start Application via PM2 with GitHub Token
+      # 5. Restart or Start Application via PM2 with GitHub Token explicitly bound
       - name: Restart Application via PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -48,11 +48,9 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            export GITHUB_TOKEN="${{ secrets.GH_ACCESS_TOKEN }}"
-            
             if pm2 describe jira-backend > /dev/null 2>&1; then
-              pm2 restart jira-backend --update-env
+              GITHUB_TOKEN="${{ secrets.GH_ACCESS_TOKEN }}" pm2 restart jira-backend --update-env
             else
-              pm2 start java --name "jira-backend" -- -jar target/*.war
+              GITHUB_TOKEN="${{ secrets.GH_ACCESS_TOKEN }}" pm2 start java --name "jira-backend" -- -jar target/*.war
             fi
             pm2 save
