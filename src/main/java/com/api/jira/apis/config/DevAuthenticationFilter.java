@@ -23,7 +23,10 @@ public class DevAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         // Skip dev filter entirely for GitHub webhook requests
-        return "/api/github/webhook".equals(path) || "/webhook".equals(path);
+        return "/api/github/webhook".equals(path) || "/webhook".equals(path) ||
+                path.startsWith("/swagger-ui")
+                || path.startsWith("/v3/api-docs")
+                || path.equals("/swagger-ui.html");
     }
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
