@@ -29,18 +29,18 @@ jobs:
       - name: Build with Maven
         run: ./mvnw clean package -DskipTests
 
-      # 4. Copy built WAR to EC2 via SCP
-      - name: Copy target file to EC2
+      # 4. Copy built WAR and Ecosystem Config to EC2 via SCP
+      - name: Copy files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: 43.204.130.37.nip.io
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "target/*.war"
+          source: "target/*.war, ecosystem.config.js"
           target: "/home/ec2-user/"
           strip_components: 1
 
-      # 5. Restart or Start Application via PM2 with GitHub Token explicitly bound
+      # 5. Restart or Start Application via PM2 using the Ecosystem Config
       - name: Restart Application via PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -48,9 +48,11 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            export GITHUB_TOKEN="${{ secrets.GH_ACCESS_TOKEN }}"
+            
             if pm2 describe jira-backend > /dev/null 2>&1; then
-              GITHUB_TOKEN="${{ secrets.GH_ACCESS_TOKEN }}" pm2 restart jira-backend --update-env
+              pm2 reload ecosystem.config.js --update-env
             else
-              GITHUB_TOKEN="${{ secrets.GH_ACCESS_TOKEN }}" pm2 start java --name "jira-backend" -- -jar target/*.war
+              pm2 start ecosystem.config.js
             fi
             pm2 save
