@@ -28,6 +28,9 @@ public class GithubService {
     @Value("${github.repo.ui.repo}")
     private String uiRepoName;
 
+    @Value("${github.token}")
+    private String token;
+
     private final RestTemplate restTemplate;
 
     public GithubService(RestTemplate restTemplate) {
@@ -56,6 +59,7 @@ public class GithubService {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Accept", "application/vnd.github+json");
         headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+        headers.set("Authorization", "Bearer "+token);
 
         HttpEntity<Void> entity = new HttpEntity<>(headers);
         List<Map<String, Object>> result = new ArrayList<>();
