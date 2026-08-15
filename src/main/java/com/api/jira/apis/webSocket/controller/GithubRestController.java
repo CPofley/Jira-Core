@@ -26,7 +26,7 @@ public class GithubRestController {
     }
 
     // Handles direct manual fetch from frontend (fixes 'No static resource api/github/pr/{taskId}')
-    @GetMapping("/pr/{taskId}")
+    @GetMapping("/prs/{taskId}")
     public ResponseEntity<List<Map<String, Object>>> getPullRequestsForTask(@PathVariable Integer taskId) {
         try {
             List<Map<String, Object>> pullRequests = githubService.getPrForATaskId(taskId).get();

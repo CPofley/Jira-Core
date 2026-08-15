@@ -27,14 +27,13 @@ public class SecurityConfig {
         this.devAuthenticationFilter = devAuthenticationFilter;
     }
 
-
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
-        return (web) -> web.ignoring().requestMatchers("/api/github/webhook", "/webhook");
+        return (web) -> web.ignoring().requestMatchers("/api/github/webhook", "/webhook", "/ws/**");
     }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        // Instantiate the default resolver to delegate to when not hitting webhooks
         DefaultBearerTokenResolver defaultResolver = new DefaultBearerTokenResolver();
 
         http
@@ -45,20 +44,18 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/users/sync").permitAll()
-                        .requestMatchers("/ws/**").permitAll()
-                        .requestMatchers("/api/github/webhook", "/webhook").permitAll()
+                        .requestMatchers("/ws/**", "/ws", "/ws/info/**").permitAll() // Fully permit all SockJS/WebSocket transports
+                        .requestMatchers("/api/github/webhook", "/webhook", "/api/github/pr/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/github/webhook", "/webhook").permitAll()
                         .requestMatchers("/api/tasks/**").authenticated()
                         .requestMatchers("/api/users/**").authenticated()
-                        .requestMatchers("/ws/**").permitAll()
-                        .requestMatchers("/api/github/webhook", "/webhook").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .bearerTokenResolver(request -> {
                             String path = request.getRequestURI();
                             if ("/api/github/webhook".equals(path) || "/webhook".equals(path)) {
-                                return null; // Skip Bearer token validation for Webhook requests
+                                return null;
                             }
                             return defaultResolver.resolve(request);
                         })
@@ -71,17 +68,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-                "http://192.168.1.6.nip.io:5173",
-                "http://192.168.1.6:5173",
-                "http://43.204.130.37",
-                "http://43.204.130.37:3000",
-                "http://43.204.130.37:8080",
-                "http://43.204.130.37.nip.io", // <-- Add this
-                "http://43.204.130.37.nip.io:8080"
-        ));
+        configuration.setAllowedOriginPatterns(List.of("*")); // Use patterns to safely allow all origins during deployment
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of(
                 "Authorization",
