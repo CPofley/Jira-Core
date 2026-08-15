@@ -116,6 +116,7 @@ public class GithubService {
 
     private boolean fetchIsMergedDirectly(String targetRepo, Integer prNumber) {
         try {
+            LOG.info("Token: "+token);
             String prUrl = String.format("https://api.github.com/repos/%s/%s/pulls/%d", repoOwner, targetRepo, prNumber);
             HttpHeaders headers = new HttpHeaders();
             headers.set("Accept", "application/vnd.github+json");
