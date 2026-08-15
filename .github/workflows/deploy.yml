@@ -22,12 +22,12 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # 3. Make Maven Wrapper executable & build package without running tests
+      # 3. Make Maven Wrapper executable & build package with the GitHub token baked in
       - name: Make Maven Wrapper Executable
         run: chmod +x mvnw
 
       - name: Build with Maven
-        run: ./mvnw clean package -DskipTests
+        run: ./mvnw clean package -DskipTests -Dgithub.token=${{ secrets.GH_ACCESS_TOKEN }}
 
       # 4. Copy built WAR directly to EC2 home directory
       - name: Copy target file to EC2
@@ -40,7 +40,7 @@ jobs:
           target: "/home/ec2-user/"
           strip_components: 1
 
-      # 5. Restart or Start Application via PM2 using the explicit WAR name
+      # 5. Simplified PM2 Restart (No env blocks or file generation required)
       - name: Restart Application via PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -49,20 +49,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             pm2 delete jira-backend || true
-            
-            cat <<EOF > /home/ec2-user/ecosystem.config.js
-            module.exports = {
-              apps: [{
-                name: "jira-backend",
-                script: "java",
-                args: ["-jar", "/home/ec2-user/Jira-0.0.1-SNAPSHOT.war"],
-                env: {
-                  GITHUB_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
-                }
-              }]
-            };
-            EOF
-            
             cd /home/ec2-user
-            pm2 start ecosystem.config.js
+            pm2 start java --name "jira-backend" -- -jar /home/ec2-user/Jira-0.0.1-SNAPSHOT.war
             pm2 save
