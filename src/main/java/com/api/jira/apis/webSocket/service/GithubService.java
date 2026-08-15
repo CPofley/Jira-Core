@@ -114,6 +114,7 @@ public class GithubService {
             String prUrl = String.format("https://api.github.com/repos/%s/%s/pulls/%d", repoOwner, targetRepo, prNumber);
             HttpHeaders headers = new HttpHeaders();
             headers.set("Accept", "application/vnd.github+json");
+            headers.set("Authorization", "Bearer " + token);
             HttpEntity<Void> entity = new HttpEntity<>(headers);
 
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
