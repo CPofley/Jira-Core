@@ -1,5 +1,7 @@
 package com.api.jira.apis.webSocket.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -18,6 +20,8 @@ import java.util.concurrent.CompletableFuture;
 
 @Service
 public class GithubService {
+
+    Logger LOG = LoggerFactory.getLogger(GithubService.class);
 
     @Value("${github.repo.owner}")
     private String repoOwner;
@@ -53,6 +57,7 @@ public class GithubService {
     }
 
     private CompletableFuture<List<Map<String, Object>>> fetchPrsForRepo(String targetRepo, Integer taskId) {
+        LOG.info("Token: "+token);
         String searchQuery = String.format("repo:%s/%s type:pr TASK-%d", repoOwner, targetRepo, taskId);
         String url = "https://api.github.com/search/issues?q=" + searchQuery;
 
