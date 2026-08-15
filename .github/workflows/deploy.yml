@@ -29,18 +29,18 @@ jobs:
       - name: Build with Maven
         run: ./mvnw clean package -DskipTests
 
-      # 4. Copy built WAR to EC2 via SCP
+      # 4. Copy built WAR directly to EC2 home directory
       - name: Copy target file to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: 43.204.130.37.nip.io
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "target/*.war"
+          source: "target/Jira-0.0.1-SNAPSHOT.war"
           target: "/home/ec2-user/"
           strip_components: 1
 
-      # 5. Restart or Start Application via PM2 with Dynamic WAR Detection & Token Injection
+      # 5. Restart or Start Application via PM2 using the explicit WAR name
       - name: Restart Application via PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -50,17 +50,12 @@ jobs:
           script: |
             pm2 delete jira-backend || true
             
-            # Find the actual WAR filename dynamically inside target/
-            WAR_FILE=$(ls /home/ec2-user/target/*.war | head -n 1)
-            echo "Using WAR file: $WAR_FILE"
-            
-            # Generate ecosystem config dynamically with the correct absolute WAR path & GitHub Token
             cat <<EOF > /home/ec2-user/ecosystem.config.js
             module.exports = {
               apps: [{
                 name: "jira-backend",
                 script: "java",
-                args: ["-jar", "$WAR_FILE"],
+                args: ["-jar", "/home/ec2-user/Jira-0.0.1-SNAPSHOT.war"],
                 env: {
                   GITHUB_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
                 }
