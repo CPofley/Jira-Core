@@ -2,11 +2,14 @@ package com.api.jira.apis.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationFilter;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -24,8 +27,16 @@ public class SecurityConfig {
         this.devAuthenticationFilter = devAuthenticationFilter;
     }
 
+
+    @Bean
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        return (web) -> web.ignoring().requestMatchers("/api/github/webhook", "/webhook");
+    }
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        // Instantiate the default resolver to delegate to when not hitting webhooks
+        DefaultBearerTokenResolver defaultResolver = new DefaultBearerTokenResolver();
+
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -33,13 +44,26 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers("/api/users/sync").permitAll() // Permitted for token sync
+                        .requestMatchers("/api/users/sync").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/api/github/webhook", "/webhook").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/github/webhook", "/webhook").permitAll()
                         .requestMatchers("/api/tasks/**").authenticated()
                         .requestMatchers("/api/users/**").authenticated()
                         .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/api/github/webhook", "/webhook").permitAll()
                         .anyRequest().authenticated()
                 )
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(request -> {
+                            String path = request.getRequestURI();
+                            if ("/api/github/webhook".equals(path) || "/webhook".equals(path)) {
+                                return null; // Skip Bearer token validation for Webhook requests
+                            }
+                            return defaultResolver.resolve(request);
+                        })
+                        .jwt(Customizer.withDefaults())
+                );
 
         return http.build();
     }
@@ -52,9 +76,11 @@ public class SecurityConfig {
                 "http://127.0.0.1:5173",
                 "http://192.168.1.6.nip.io:5173",
                 "http://192.168.1.6:5173",
-                "http://3.110.217.23",
-                "http://3.110.217.23:3000",
-                "http://3.110.217.23:8080"
+                "http://43.204.130.37",
+                "http://43.204.130.37:3000",
+                "http://43.204.130.37:8080",
+                "http://43.204.130.37.nip.io", // <-- Add this
+                "http://43.204.130.37.nip.io:8080"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of(

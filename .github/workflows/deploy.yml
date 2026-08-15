@@ -14,7 +14,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. Setup Java 17 (or Java 21 depending on your version)
+      # 2. Setup Java 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -29,23 +29,40 @@ jobs:
       - name: Build with Maven
         run: ./mvnw clean package -DskipTests
 
-      # 4. Copy built JAR/WAR to EC2 via SCP
+      # 4. Copy built WAR directly to EC2 home directory
       - name: Copy target file to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: 3.110.217.23.nip.io
+          host: 43.204.130.37.nip.io
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "target/*.war"  # or target/*.jar if using JAR
+          source: "target/Jira-0.0.1-SNAPSHOT.war"
           target: "/home/ec2-user/"
           strip_components: 1
 
-      # 5. Restart Spring Boot process in PM2 via SSH
+      # 5. Restart or Start Application via PM2 using the explicit WAR name
       - name: Restart Application via PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 3.110.217.23.nip.io
+          host: 43.204.130.37.nip.io
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            pm2 restart jira-backend
+            pm2 delete jira-backend || true
+            
+            cat <<EOF > /home/ec2-user/ecosystem.config.js
+            module.exports = {
+              apps: [{
+                name: "jira-backend",
+                script: "java",
+                args: ["-jar", "/home/ec2-user/Jira-0.0.1-SNAPSHOT.war"],
+                env: {
+                  GITHUB_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
+                }
+              }]
+            };
+            EOF
+            
+            cd /home/ec2-user
+            pm2 start ecosystem.config.js
+            pm2 save

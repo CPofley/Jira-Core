@@ -2,3 +2,4 @@ Next Steps to this app:
 1. Create role for each user ( Ex. Admin, normal user )
 2. Land normal user to their respective project's dashboard since we have projectId_userId
 3. Add invite to project option which admin can send to normal user
+4. Going with manual refresh for PRs to task instead of auto sync up this causing 401
