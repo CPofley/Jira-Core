@@ -11,6 +11,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -84,6 +85,9 @@ public class TaskEntity {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "component")
+    private Set<String> component;
 
     // Helper methods to keep both sides of the relationship in sync
     public void addComment(CommentEntity comment) {

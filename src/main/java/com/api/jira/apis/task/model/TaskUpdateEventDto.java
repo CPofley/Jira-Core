@@ -14,6 +14,6 @@ import lombok.NoArgsConstructor;
 public class TaskUpdateEventDto {
     private Integer taskId;
     private String updatedBy;
-    private Map<String, Object> fields; // 👈 Must be present and accessible
+    private Map<String, Object> fields;
     private String type;
 }

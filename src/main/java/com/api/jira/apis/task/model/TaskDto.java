@@ -24,4 +24,5 @@
         private Set<ChildTasksDto> subIssues;
         private String updatedBy;
         private LocalDateTime updatedAt;
+        private Set<String> component;
     }
