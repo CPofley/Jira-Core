@@ -139,6 +139,19 @@ public class TasksService {
         if (updates.containsKey("description")) {
             task.setDescription((String) updates.get("description"));
         }
+        if(updates.containsKey("component")){
+            Object components = updates.get("component");
+            Set<String> taskComponents = new HashSet<>();
+            if(components instanceof Collection)
+            {
+                for(Object component: (Collection<?>) components){
+                    if(component != null){
+                        taskComponents.add((String)component);
+                    }
+                }
+            }
+            task.setComponent(taskComponents);
+        }
         TaskType taskType = parseEnum(updates, "taskType", TaskType.class, "Task type");
         if (taskType != null) {
             task.setTaskType(taskType);
