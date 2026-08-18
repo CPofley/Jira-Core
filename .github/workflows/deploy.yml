@@ -44,7 +44,7 @@ jobs:
       - name: Restart Application via PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 13.200.43.90
+          host: 13.200.43.90.nip.io
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
