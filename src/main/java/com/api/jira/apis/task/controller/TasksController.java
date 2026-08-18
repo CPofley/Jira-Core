@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 // security pwd: b4ef1b4f-810b-4999-9617-1c88be3953eb
 @RestController
@@ -135,6 +134,11 @@ public class TasksController {
     @PostMapping("/create/sub-task")
     public ResponseEntity<TaskDto> createSubTask(@Valid @RequestBody CreateSubTaskRequest createSubTaskRequest){
         return ResponseEntity.ok().body(tasksService.createSubTask(createSubTaskRequest));
+    }
+
+    @PostMapping("/query")
+    public ResponseEntity<?> getSearchedTasks(@Valid @RequestBody KeywordSearchRequest keywordSearchRequest){
+        return ResponseEntity.ok().body(tasksService.searchedTasks(keywordSearchRequest));
     }
 
 

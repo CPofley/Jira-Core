@@ -317,6 +317,10 @@ public class TasksService {
         return taskMapper.toTaskDtoList(taskDbService.getTasksForCurrentProject(projectId,pageable).getContent().stream().sorted(Comparator.comparing(TaskEntity::getCreatedAt).reversed()).toList());
     }
 
+    public List<TaskDto> searchedTasks(KeywordSearchRequest keywordSearchRequest){
+        return taskMapper.toTaskDtoList(taskDbService.getSearchedTask(keywordSearchRequest.getProjectId(),keywordSearchRequest.getKeyword(),keywordSearchRequest.toPageable()).getContent().stream().sorted(Comparator.comparing(TaskEntity::getCreatedAt).reversed()).toList());
+    }
+
     @CacheEvict(value = "tasks", key = "#createSubTaskRequest.currentTaskId")
     public TaskDto createSubTask(CreateSubTaskRequest createSubTaskRequest) {
         TaskEntity parentTask = taskDbService.getTaskByJiraId(createSubTaskRequest.getCurrentTaskId());

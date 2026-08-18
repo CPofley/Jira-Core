@@ -96,4 +96,26 @@ public interface TasksRepository extends JpaRepository<TaskEntity, Integer> {
                           @Param("updatedAt") LocalDateTime updatedAt,
                           @Param("assignee") UserEntity assignee,
                           @Param("reporter") UserEntity reporter);
+
+    @Query("SELECT t FROM TaskEntity t " +
+            "LEFT JOIN t.assignee a " +
+            "LEFT JOIN t.reporter r " +
+            "WHERE t.project.id = :projectId AND (" +
+            "   (:keyword IS NULL OR :keyword = '') OR " +
+            "   CAST(t.id AS string) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(t.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(t.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(CAST(t.taskStatus AS string)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(CAST(t.priority AS string)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(CAST(t.taskType AS string)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(a.username) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(a.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(r.username) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "   LOWER(r.email) LIKE LOWER(CONCAT('%', :keyword, '%'))" +
+            ")")
+    Page<TaskEntity> searchTasksGlobal(
+            @Param("projectId") Integer projectId,
+            @Param("keyword") String keyword,
+            Pageable pageable
+    );
 }
