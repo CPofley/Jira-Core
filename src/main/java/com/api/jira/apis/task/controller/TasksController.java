@@ -56,7 +56,7 @@ public class TasksController {
         return ResponseEntity.ok(config);
     }
 
-    @PatchMapping("/update/{id}")
+    @PatchMapping("/update")
     public ResponseEntity<?> updateTaskPartially(@Valid @RequestBody UpdateTaskRequest updateTaskRequest) {
         return ResponseEntity.ok(tasksService.updateTaskFields(updateTaskRequest));
     }
