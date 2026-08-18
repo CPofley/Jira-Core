@@ -33,7 +33,7 @@ jobs:
       - name: Copy target file to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: 13.200.43.90
+          host: 13.200.43.90.nip.io
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "target/Jira-0.0.1-SNAPSHOT.war"
