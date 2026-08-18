@@ -33,18 +33,18 @@ jobs:
       - name: Copy target file to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: 43.204.130.37.nip.io
+          host: 13.200.43.90.nip.io
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "target/Jira-0.0.1-SNAPSHOT.war"
           target: "/home/ec2-user/"
           strip_components: 1
 
-      # 5. Simplified PM2 Restart (No env blocks or file generation required)
+      # 5. Clear old PM2 process and start the fresh build
       - name: Restart Application via PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 43.204.130.37.nip.io
+          host: 13.200.43.90.nip.io
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
