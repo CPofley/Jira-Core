@@ -64,6 +64,7 @@ public class TasksService {
 
     public Integer createTask(CreateTaskRequest createTaskRequest) {
         TaskEntity taskEntity = taskMapper.toTaskEntity(createTaskRequest);
+        Set<String> components = null;
         UserEntity reporterEntity = userDbService.findByEmail(createTaskRequest.getReporter())
                 .orElseThrow(() -> new RuntimeException("Reporter not found with email: " + taskEntity.getReporter()));
         Optional<ProjectEntity> projectEntity = projectDbService.findProjectById(createTaskRequest.getProjectId());
@@ -79,6 +80,10 @@ public class TasksService {
         if (taskEntity.getDescription() == null) {
             taskEntity.setDescription("");
         }
+        if(createTaskRequest.getComponent() != null){
+            components = new HashSet<>(createTaskRequest.getComponent());
+        }
+        taskEntity.setComponent(components);
         if(validateRequest(taskEntity)){
             TaskDto dto =  taskDbService.saveTask(taskEntity);
             if(dto != null && dto.getId() != null){
@@ -121,7 +126,7 @@ public class TasksService {
         if(task == null) {
             throw new TaskNotFoundException("Task not found with task ID: " + id);
         }
-        if(!isValidEmail(updateTaskRequest.getEmailId())){
+        if(isValidEmail(updateTaskRequest.getEmailId())){
             throw new EmailFormatException("Incorrect email format: "+updateTaskRequest.getEmailId());
         }
         UserEntity updatedBy = userDbService.findByEmail(updateTaskRequest.getEmailId())
@@ -130,7 +135,7 @@ public class TasksService {
         // 2. Conditionally update fields if key exists in payload
         if (updates.containsKey("title")) {
             String taskTitle = (String) updates.get("title");
-            if(taskTitle.isBlank() || taskTitle.isEmpty()){
+            if(taskTitle.isBlank()){
                 throw new RuntimeException("Task title cannot be null or empty: "+taskTitle);
             }
             task.setTitle((String) updates.get("title"));
@@ -166,8 +171,8 @@ public class TasksService {
         }
         if (updates.containsKey("assignee")) {
             String email = (String) updates.get("assignee");
-            if(!email.isBlank() || !email.isEmpty()){
-                if(!isValidEmail(email)){
+            if(!email.isEmpty()){
+                if(isValidEmail(email)){
                     throw new EmailFormatException("Incorrect assignee email format: "+email);
                 }
             }
@@ -176,7 +181,7 @@ public class TasksService {
         if (updates.containsKey("reporter")) {
 
             String email = (String) updates.get("reporter");
-           if(!email.isEmpty() && !email.isBlank()&& !isValidEmail(email)){
+           if(!email.isBlank() && isValidEmail(email)){
                 throw new EmailFormatException("Incorrect reporter email format: "+email);
            }
             task.setReporter(userDbService.findByEmail(email).orElse(null));
@@ -230,7 +235,7 @@ public class TasksService {
         }
         boolean result = taskDbService.deleteTask(existingTask.getId());
         if (parentJiraId != null && cacheManager.getCache("tasks") != null) {
-            cacheManager.getCache("tasks").evict(parentJiraId);
+            Objects.requireNonNull(cacheManager.getCache("tasks")).evict(parentJiraId);
         }
         return result;
     }
@@ -306,8 +311,8 @@ public class TasksService {
         // Clean up cache states programmatically for both IDs
         // 🟢 Fixed: Evicting directly from "tasks" cache region
         if (cacheManager.getCache("tasks") != null) {
-            cacheManager.getCache("tasks").evict(linkTaskRequest.getCurrentTaskId());
-            cacheManager.getCache("tasks").evict(linkTaskRequest.getTaskToLinkId());
+            Objects.requireNonNull(cacheManager.getCache("tasks")).evict(linkTaskRequest.getCurrentTaskId());
+            Objects.requireNonNull(cacheManager.getCache("tasks")).evict(linkTaskRequest.getTaskToLinkId());
         }
 
         return ResponseEntity.ok("Issues linked successfully.");
@@ -342,7 +347,7 @@ public class TasksService {
     }
 
     private boolean isValidEmail(String email) {
-        return email != null && EMAIL_PATTERN.matcher(email).matches();
+        return email == null || !EMAIL_PATTERN.matcher(email).matches();
     }
 
     private <E extends Enum<E>> E parseEnum(Map<String, Object> updates, String key, Class<E> enumClass, String fieldName) {

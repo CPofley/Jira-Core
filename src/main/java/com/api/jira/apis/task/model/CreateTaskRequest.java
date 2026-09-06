@@ -8,6 +8,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
+import java.util.List;
+import java.util.Set;
+
 @Data
 public class CreateTaskRequest {
 
@@ -36,4 +39,5 @@ public class CreateTaskRequest {
     private Priority priority;
     @NotNull(message = "Project ID is mandatory")
     private Integer projectId;
+    private List<String> component;
 }
