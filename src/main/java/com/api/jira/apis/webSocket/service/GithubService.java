@@ -57,14 +57,14 @@ public class GithubService {
     }
 
     private CompletableFuture<List<Map<String, Object>>> fetchPrsForRepo(String targetRepo, Integer taskId) {
-        LOG.info("Token: "+token);
+        LOG.info("Token: " + token);
         String searchQuery = String.format("repo:%s/%s type:pr TASK-%d", repoOwner, targetRepo, taskId);
         String url = "https://api.github.com/search/issues?q=" + searchQuery;
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("Accept", "application/vnd.github+json");
         headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
-        headers.set("Authorization", "Bearer "+token);
+        headers.set("Authorization", "Bearer " + token);
 
         HttpEntity<Void> entity = new HttpEntity<>(headers);
         List<Map<String, Object>> result = new ArrayList<>();
@@ -84,11 +84,21 @@ public class GithubService {
                         Map<String, Object> prMap = new HashMap<>();
                         prMap.put("id", item.get("id"));
                         prMap.put("number", item.get("number"));
-                        prMap.put("title", targetRepo + ": " + item.get("title")); // Optional: Prefix title to distinguish UI vs Backend PRs
+                        prMap.put("title", targetRepo + ": " + item.get("title"));
                         prMap.put("url", item.get("html_url"));
 
                         String state = (String) item.get("state");
                         prMap.put("state", state);
+                        prMap.put("updatedAt", item.get("updated_at"));
+
+                        // Extract User / Creator info from search item if present
+                        if (item.get("user") instanceof Map<?, ?> userMap) {
+                            prMap.put("createdBy", userMap.get("login"));
+                            prMap.put("authorAvatar", userMap.get("avatar_url"));
+                        } else {
+                            prMap.put("createdBy", "Unknown");
+                            prMap.put("authorAvatar", "");
+                        }
 
                         boolean isMerged = false;
                         if (item.get("pull_request") instanceof Map<?, ?> prDetails) {
@@ -99,10 +109,12 @@ public class GithubService {
 
                         if ("closed".equalsIgnoreCase(state) && (isMerged || item.get("pull_request") != null)) {
                             Integer prNumber = (Integer) item.get("number");
-                            isMerged = fetchIsMergedDirectly(targetRepo, prNumber);
+                            // Enrich with exact merge state & direct PR endpoint data if needed
+                            enrichPrDetailsDirectly(targetRepo, prNumber, prMap);
+                        } else {
+                            prMap.put("isMerged", isMerged);
                         }
 
-                        prMap.put("isMerged", isMerged);
                         result.add(prMap);
                     }
                 }
@@ -114,9 +126,8 @@ public class GithubService {
         return CompletableFuture.completedFuture(result);
     }
 
-    private boolean fetchIsMergedDirectly(String targetRepo, Integer prNumber) {
+    private void enrichPrDetailsDirectly(String targetRepo, Integer prNumber, Map<String, Object> prMap) {
         try {
-            LOG.info("Token: "+token);
             String prUrl = String.format("https://api.github.com/repos/%s/%s/pulls/%d", repoOwner, targetRepo, prNumber);
             HttpHeaders headers = new HttpHeaders();
             headers.set("Accept", "application/vnd.github+json");
@@ -130,11 +141,20 @@ public class GithubService {
             Map<String, Object> pr = response.getBody();
             if (pr != null) {
                 Boolean merged = (Boolean) pr.get("merged");
-                return Boolean.TRUE.equals(merged) || pr.get("merged_at") != null;
+                boolean isMerged = Boolean.TRUE.equals(merged) || pr.get("merged_at") != null;
+                prMap.put("isMerged", isMerged);
+
+                if (pr.get("updated_at") != null) {
+                    prMap.put("updatedAt", pr.get("updated_at"));
+                }
+
+                if (pr.get("user") instanceof Map<?, ?> userMap) {
+                    prMap.put("createdBy", userMap.get("login"));
+                    prMap.put("authorAvatar", userMap.get("avatar_url"));
+                }
             }
         } catch (Exception e) {
-            // Ignore fallback error
+            prMap.put("isMerged", false);
         }
-        return false;
     }
 }
