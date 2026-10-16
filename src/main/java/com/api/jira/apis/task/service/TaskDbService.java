@@ -97,4 +97,8 @@ public class TaskDbService {
     public Optional<ProjectEntity> getProjectByTask(Integer taskId){
         return tasksRepository.getProjectByTaskId(taskId);
     }
+
+    public Page<TaskEntity> getSearchedTask(Integer projectId, String keyword,Pageable pageable){
+        return tasksRepository.searchTasksGlobal( projectId,  keyword, pageable);
+    }
 }
